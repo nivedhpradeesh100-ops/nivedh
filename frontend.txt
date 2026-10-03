@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python WebSockets Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 0 10px; }
+        #chat-box { width: 100%; height: 300px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; margin-bottom: 10px; box-sizing: border-box; background: #f9f9f9; }
+        #input-container { display: flex; gap: 10px; }
+        #message-input { flex-grow: 1; padding: 10px; }
+        button { padding: 10px 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h2>Python WebSocket Chat Room</h2>
+    <div id="chat-box"></div>
+    
+    <div id="input-container">
+        <input type="text" id="message-input" placeholder="Type your message here..." autocomplete="off">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        // Prompt user for their name upon joining
+        const username = prompt("Enter your username:", "User") || "Anonymous";
+        
+        // Connect to the Python WebSocket server
+        const ws = new WebSocket("ws://localhost:6789");
+        const chatBox = document.getElementById("chat-box");
+        const messageInput = document.getElementById("message-input");
+
+        // Handle incoming messages from the server
+        ws.onmessage = function(event) {
+            appendMessage(event.data);
+        };
+
+        // Handle errors or disconnections
+        ws.onclose = function() {
+            appendMessage("<i>System: Disconnected from the server.</i>");
+        };
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text !== "") {
+                const fullMessage = `${username}: ${text}`;
+                
+                // Send text to the WebSocket server
+                ws.send(fullMessage);
+                
+                // Immediately display your own message in your chat UI
+                appendMessage(`<b>You:</b> ${text}`);
+                messageInput.value = "";
+            }
+        }
+
+        function appendMessage(msg) {
+            const msgElement = document.createElement("div");
+            msgElement.innerHTML = msg;
+            chatBox.appendChild(msgElement);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to latest message
+        }
+
+        // Allow sending messages by pressing the "Enter" key
+        messageInput.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
