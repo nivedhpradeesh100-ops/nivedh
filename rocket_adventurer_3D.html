@@ -1,0 +1,3133 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocket Lab 3D — Intergalactic Edition</title>
+  <style>
+    :root {
+      --bg-panel: rgba(10, 16, 30, 0.84);
+      --border-panel: rgba(96, 165, 250, 0.3);
+      --accent: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-warm: #f97316;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --text-main: #f1f5f9;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #03060f;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text-main);
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* 2D Target Reticle Overlay */
+    #target-reticle {
+      position: fixed;
+      z-index: 6;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #target-reticle.show {
+      display: flex;
+    }
+
+    .reticle-ring {
+      width: 46px;
+      height: 46px;
+      border: 2px solid rgba(56, 189, 248, 0.85);
+      border-radius: 50%;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.55), inset 0 0 10px rgba(168, 85, 247, 0.35);
+      position: relative;
+      animation: pulseRing 2s infinite ease-in-out;
+    }
+
+    .reticle-ring::before,
+    .reticle-ring::after {
+      content: '';
+      position: absolute;
+      background: #38bdf8;
+    }
+
+    .reticle-ring::before {
+      width: 10px;
+      height: 2px;
+      top: 50%;
+      left: -6px;
+      transform: translateY(-50%);
+      box-shadow: 46px 0 0 #38bdf8;
+    }
+
+    .reticle-ring::after {
+      width: 2px;
+      height: 10px;
+      left: 50%;
+      top: -6px;
+      transform: translateX(-50%);
+      box-shadow: 0 46px 0 #38bdf8;
+    }
+
+    .reticle-tag {
+      background: rgba(10, 16, 30, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #7dd3fc;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    /* HUD Overlay */
+    #ui-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-panel);
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48);
+    }
+
+    /* Top Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 16px;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #38bdf8, #8b5cf6);
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.08rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .mode-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.16);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .mode-badge.flight {
+      background: rgba(168, 85, 247, 0.22);
+      color: #d8b4fe;
+      border-color: rgba(168, 85, 247, 0.5);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .icon-btn {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      color: var(--text-main);
+      padding: 9px 13px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.18s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent);
+      background: rgba(30, 41, 59, 0.9);
+    }
+
+    .icon-btn.active-toggle {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent);
+      color: #7dd3fc;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
+    }
+
+    .reset-btn {
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      color: #fca5a5;
+      padding: 9px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: all 0.18s ease;
+    }
+
+    .reset-btn:hover {
+      background: rgba(239, 68, 68, 0.35);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Target Galaxy Top-Center Nav Card */
+    .galaxy-nav {
+      position: fixed;
+      top: 74px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 380px;
+      max-width: 92vw;
+    }
+
+    .galaxy-nav-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .galaxy-nav-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .galaxy-progress-track {
+      height: 8px;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      overflow: hidden;
+    }
+
+    .galaxy-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #a855f7, #f472b6);
+      border-radius: 999px;
+      transition: width 0.12s linear;
+    }
+
+    .galaxy-nav-sub {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .guide-btn {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: var(--text-main);
+      padding: 7px 11px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 700;
+      white-space: nowrap;
+      transition: all 0.16s ease;
+    }
+
+    .guide-btn.on {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: #22c55e;
+      color: #86efac;
+      box-shadow: 0 0 14px rgba(34, 197, 94, 0.28);
+    }
+
+    /* Main Middle Area */
+    .middle-area {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 12px 0;
+      position: relative;
+      pointer-events: none;
+    }
+
+    /* Build Mode Panels */
+    .build-panel {
+      width: 330px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: calc(100vh - 180px);
+      overflow-y: auto;
+    }
+
+    .panel-title {
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      margin: 0 0 2px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .core-card {
+      padding: 9px 11px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px dashed rgba(56, 189, 248, 0.35);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+
+    .core-card span.tag {
+      font-size: 0.68rem;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .part-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .part-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .detach-btn {
+      background: transparent;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      color: var(--text-dim);
+      font-size: 0.66rem;
+      padding: 2px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .detach-btn:hover {
+      border-color: var(--accent-red);
+      color: #fca5a5;
+    }
+
+    .part-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .part-btn {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: var(--text-main);
+      padding: 8px 6px;
+      border-radius: 9px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.18s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .part-btn:hover {
+      border-color: rgba(56, 189, 248, 0.6);
+      background: rgba(30, 41, 59, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .part-btn.active {
+      background: linear-gradient(145deg, rgba(56, 189, 248, 0.24), rgba(139, 92, 246, 0.2));
+      border-color: var(--accent);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+    }
+
+    .part-btn.cosmic-part {
+      border-color: rgba(168, 85, 247, 0.38);
+    }
+
+    .part-btn .name {
+      font-size: 0.76rem;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .part-btn .sub {
+      font-size: 0.64rem;
+      color: var(--text-dim);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      line-height: 1.2;
+    }
+
+    /* Stats Panel */
+    .stats-panel {
+      width: 275px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 7px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .stat-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .stat-value {
+      font-size: 0.98rem;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .twr-badge {
+      padding: 8px 10px;
+      border-radius: 9px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .twr-good {
+      background: rgba(34, 197, 94, 0.16);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #86efac;
+    }
+
+    .twr-cosmic {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(168, 85, 247, 0.22));
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      color: #e9d5ff;
+    }
+
+    .twr-warn {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fcd34d;
+    }
+
+    .twr-bad {
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      color: #fca5a5;
+    }
+
+    /* Bottom Bar */
+    .bottom-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    /* Placed after .bottom-bar with higher specificity so .interactive always works */
+    #ui-layer .interactive,
+    .interactive {
+      pointer-events: auto;
+    }
+
+    .launch-btn {
+      pointer-events: auto;
+      background: linear-gradient(135deg, #2563eb, #9333ea);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      font-size: 1.15rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      padding: 14px 44px;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(147, 51, 234, 0.48), 0 0 24px rgba(56, 189, 248, 0.35);
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .launch-btn:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 14px 36px rgba(147, 51, 234, 0.65), 0 0 32px rgba(56, 189, 248, 0.55);
+    }
+
+    .launch-btn:disabled {
+      background: #334155;
+      color: #94a3b8;
+      box-shadow: none;
+      cursor: not-allowed;
+      border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    .hint-pill {
+      background: rgba(10, 16, 30, 0.76);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      letter-spacing: 0.03em;
+      text-align: center;
+    }
+
+    .hint-pill kbd {
+      background: rgba(255, 255, 255, 0.14);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #fff;
+      font-family: ui-monospace, monospace;
+      font-weight: 700;
+    }
+
+    /* Flight HUD */
+    .flight-hud-left, .flight-hud-right {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 245px;
+    }
+
+    .gauge-card {
+      padding: 13px 15px;
+    }
+
+    .gauge-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.11em;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .gauge-big {
+      font-size: 1.55rem;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      line-height: 1.15;
+    }
+
+    .gauge-unit {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .gauge-sub {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+      font-family: ui-monospace, monospace;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 11px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      margin-top: 7px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 100%;
+      border-radius: 999px;
+      transition: width 0.08s linear;
+    }
+
+    .fuel-fill {
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+    }
+
+    .throttle-fill {
+      background: linear-gradient(90deg, #38bdf8, #22c55e);
+    }
+
+    .warp-pill {
+      margin-top: 7px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: var(--text-dim);
+    }
+
+    .warp-pill.active {
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.26), rgba(168, 85, 247, 0.3));
+      border-color: #c084fc;
+      color: #f3e8ff;
+      box-shadow: 0 0 16px rgba(168, 85, 247, 0.45);
+    }
+
+    /* Flight Status Banner */
+    .flight-banner {
+      position: fixed;
+      top: 146px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      padding: 9px 22px;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.86rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      text-align: center;
+    }
+
+    .flight-banner.show {
+      opacity: 1;
+    }
+
+    /* Mission Summary / Galaxy Arrival Card */
+    .summary-card {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      width: 390px;
+      max-width: 92vw;
+      padding: 24px;
+      text-align: center;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .summary-card.show {
+      display: flex;
+    }
+
+    .summary-card h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      letter-spacing: 0.05em;
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .summary-box {
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .summary-box .lbl {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .summary-box .val {
+      font-size: 1.02rem;
+      font-weight: 800;
+      font-family: ui-monospace, monospace;
+      margin-top: 2px;
+    }
+
+    .summary-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 860px) {
+      .build-panel { width: 255px; padding: 11px; }
+      .stats-panel { width: 215px; padding: 11px; }
+      .flight-hud-left, .flight-hud-right { width: 185px; }
+      .gauge-big { font-size: 1.2rem; }
+      .galaxy-nav { min-width: 300px; top: 68px; padding: 8px 12px; }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- 2D Projected Reticle for Andromeda Galaxy -->
+  <div id="target-reticle">
+    <div class="reticle-ring"></div>
+    <div id="reticle-label" class="reticle-tag">ANDROMEDA M31 • 2.54M ly</div>
+  </div>
+
+  <div id="ui-layer">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="brand panel interactive">
+        <div class="brand-icon">🌌</div>
+        <div>
+          <h1>Rocket Lab 3D</h1>
+        </div>
+        <span id="mode-badge" class="mode-badge">Hangar • Intergalactic</span>
+      </div>
+
+      <div class="top-actions">
+        <button id="infinite-btn" class="icon-btn interactive active-toggle" title="Toggle Infinite Propulsion">
+          ∞ Infinite Fuel: ON
+        </button>
+        <button id="sound-btn" class="icon-btn interactive" title="Toggle Audio">🔊 Sound: ON</button>
+        <button id="cam-reset-btn" class="icon-btn interactive hidden" title="Reset Camera behind rocket (C)">🎥 Reset Cam (C)</button>
+        <button id="reset-hangar-btn" class="reset-btn interactive hidden">↩ Reset to Hangar</button>
+      </div>
+    </div>
+
+    <!-- Flight Target Galaxy Navigation Bar -->
+    <div id="galaxy-nav" class="panel galaxy-nav interactive hidden">
+      <div class="galaxy-nav-info">
+        <div class="galaxy-nav-top">
+          <span id="nav-target-title" style="color: #e9d5ff;">🎯 Target: Andromeda Galaxy (M31)</span>
+          <span id="nav-progress-pct" style="color: var(--accent);">0.00%</span>
+        </div>
+        <div class="galaxy-progress-track">
+          <div id="nav-progress-fill" class="galaxy-progress-fill"></div>
+        </div>
+        <div class="galaxy-nav-sub">
+          <span id="nav-dist-left">2,537,000 ly left</span>
+          <span id="nav-heading-err">Align: 0.0°</span>
+          <span id="nav-eta">ETA: --</span>
+        </div>
+      </div>
+      <button id="guide-btn" class="guide-btn" title="Auto-align rocket to target (G)">
+        🎯 Guide (G): OFF
+      </button>
+    </div>
+
+    <!-- Middle Area -->
+    <div class="middle-area">
+      <!-- BUILD MODE: Left Parts Menu -->
+      <div id="build-left" class="panel build-panel interactive">
+        <div class="panel-title">
+          <span>Rocket Assembly</span>
+          <span style="color: #c084fc;">Target: Andromeda M31</span>
+        </div>
+
+        <div class="core-card">
+          <div>
+            <div style="font-weight: 700;">Interstellar Avionics Core</div>
+            <div style="font-size: 0.7rem; color: var(--text-dim);">Deep-Space Nav & Warp Computer • 1.8 t</div>
+          </div>
+          <span class="tag">Core</span>
+        </div>
+
+        <!-- Nose Cone -->
+        <div class="part-group">
+          <div class="part-header">
+            <span>Nose Cone</span>
+            <button class="detach-btn" data-clear="nose">Remove</button>
+          </div>
+          <div class="part-options">
+            <button class="part-btn" data-slot="nose" data-part="standard">
+              <span class="name">Standard</span>
+              <span class="sub">0.8t<br>0.62 Cd</span>
+            </button>
+            <button class="part-btn" data-slot="nose" data-part="aerodynamic">
+              <span class="name">Aero</span>
+              <span class="sub">0.5t<br>0.28 Cd</span>
+            </button>
+            <button class="part-btn cosmic-part" data-slot="nose" data-part="warp">
+              <span class="name">Warp Shield</span>
+              <span class="sub">0.4t<br>0.06 Cd</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fuel Tank -->
+        <div class="part-group">
+          <div class="part-header">
+            <span>Fuel / Reactor Core</span>
+            <button class="detach-btn" data-clear="tank">Remove</button>
+          </div>
+          <div class="part-options">
+            <button class="part-btn" data-slot="tank" data-part="small">
+              <span class="name">Small</span>
+              <span class="sub">4.2t<br>100 u</span>
+            </button>
+            <button class="part-btn" data-slot="tank" data-part="large">
+              <span class="name">Large</span>
+              <span class="sub">9.2t<br>240 u</span>
+            </button>
+            <button class="part-btn cosmic-part" data-slot="tank" data-part="quantum">
+              <span class="name">Quantum ∞</span>
+              <span class="sub">2.4t<br>∞ Zero-Pt</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Thruster -->
+        <div class="part-group">
+          <div class="part-header">
+            <span>Thruster</span>
+            <button class="detach-btn" data-clear="thruster">Remove</button>
+          </div>
+          <div class="part-options">
+            <button class="part-btn" data-slot="thruster" data-part="basic">
+              <span class="name">Basic</span>
+              <span class="sub">1.5t<br>155 kN</span>
+            </button>
+            <button class="part-btn" data-slot="thruster" data-part="heavy">
+              <span class="name">Heavy</span>
+              <span class="sub">3.2t<br>340 kN</span>
+            </button>
+            <button class="part-btn cosmic-part" data-slot="thruster" data-part="warp">
+              <span class="name">Warp Drive</span>
+              <span class="sub">2.8t<br>560 kN+</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BUILD MODE: Right Stats Panel -->
+      <div id="build-right" class="panel stats-panel interactive">
+        <div class="panel-title">Vehicle Telemetry</div>
+
+        <div class="stat-row">
+          <span class="stat-label">Total Weight</span>
+          <span id="stat-weight" class="stat-value">0.0 t</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Max Thrust</span>
+          <span id="stat-thrust" class="stat-value" style="color: var(--accent-warm);">0 kN</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Thrust / Weight</span>
+          <span id="stat-twr" class="stat-value">0.00</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Range / Fuel</span>
+          <span id="stat-fuel" class="stat-value" style="color: #38bdf8;">∞ Forever</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Aerodynamics</span>
+          <span id="stat-aero" class="stat-value">0.00 Cd</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Target Galaxy</span>
+          <span class="stat-value" style="color: #e9d5ff; font-size: 0.85rem;">Andromeda • 2.54M ly</span>
+        </div>
+
+        <div id="twr-status" class="twr-badge twr-cosmic">Intergalactic Ready</div>
+      </div>
+
+      <!-- FLIGHT MODE: Left HUD -->
+      <div id="flight-left" class="flight-hud-left hidden">
+        <div class="panel gauge-card">
+          <div class="gauge-label">
+            <span>Distance from Earth</span>
+            <span id="zone-label" style="color: var(--accent);">Pad</span>
+          </div>
+          <div class="gauge-big">
+            <span id="hud-dist">0</span><span id="hud-dist-unit" class="gauge-unit">m</span>
+          </div>
+          <div class="gauge-sub">Peak: <span id="hud-max-dist">0 m</span></div>
+          <div class="gauge-sub">Tilt: <span id="hud-tilt">0</span>°</div>
+        </div>
+
+        <div class="panel gauge-card">
+          <div class="gauge-label">
+            <span>Propellant / Reactor</span>
+            <span id="hud-fuel-pct">∞</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-fuel-bar" class="bar-fill fuel-fill"></div>
+          </div>
+          <div class="gauge-sub" id="hud-fuel-units">Zero-Point Core • ∞ Endless</div>
+        </div>
+      </div>
+
+      <!-- FLIGHT MODE: Right HUD -->
+      <div id="flight-right" class="flight-hud-right hidden">
+        <div class="panel gauge-card">
+          <div class="gauge-label">
+            <span>Velocity</span>
+            <span id="hud-mach" style="color: #c084fc;">Mach 0.00</span>
+          </div>
+          <div class="gauge-big">
+            <span id="hud-speed">0</span><span id="hud-speed-unit" class="gauge-unit">m/s</span>
+          </div>
+          <div class="gauge-sub">Max: <span id="hud-max-speed">0 m/s</span></div>
+          <div id="warp-pill" class="warp-pill">Sub-Orbital Drive</div>
+        </div>
+
+        <div class="panel gauge-card">
+          <div class="gauge-label">
+            <span>Throttle</span>
+            <span id="hud-throttle-pct">100%</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-throttle-bar" class="bar-fill throttle-fill"></div>
+          </div>
+          <div class="gauge-sub">Mode: <span id="hud-drive-mode">Liftoff Burn</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <div id="build-bottom" class="bottom-bar interactive">
+        <button id="launch-btn" class="launch-btn">🚀 Launch to Andromeda</button>
+        <div class="hint-pill">Drag to orbit • Scroll to zoom • Right-drag to pan • Equip Quantum Core & Warp Drive for fastest transit</div>
+      </div>
+      <div id="flight-bottom" class="hint-pill hidden">
+        <kbd>A</kbd>/<kbd>D</kbd> Steer &nbsp;•&nbsp;
+        <kbd>W</kbd>/<kbd>S</kbd> Throttle &nbsp;•&nbsp;
+        <kbd>SPACE</kbd> Warp Boost &nbsp;•&nbsp;
+        <kbd>B</kbd> Brake &nbsp;•&nbsp;
+        <kbd>G</kbd> Guide &nbsp;|&nbsp;
+        <strong>Drag</strong> Orbit Cam • <strong>Scroll</strong> Zoom • <kbd>C</kbd> Reset Cam
+      </div>
+    </div>
+  </div>
+
+  <!-- Flight Banner -->
+  <div id="flight-banner" class="panel flight-banner"></div>
+
+  <!-- Mission Milestone / Galaxy Arrival Card -->
+  <div id="summary-card" class="panel summary-card interactive">
+    <h2 id="summary-title">🌌 Target Reached!</h2>
+    <p id="summary-desc" style="margin: 0; font-size: 0.86rem; color: var(--text-dim); line-height: 1.45;"></p>
+    <div class="summary-stats">
+      <div class="summary-box">
+        <div class="lbl">Distance Traveled</div>
+        <div id="sum-alt" class="val">0 m</div>
+      </div>
+      <div class="summary-box">
+        <div class="lbl">Top Velocity</div>
+        <div id="sum-speed" class="val">0 m/s</div>
+      </div>
+    </div>
+    <div class="summary-actions">
+      <button id="continue-forever-btn" class="launch-btn" style="font-size: 0.9rem; padding: 12px 24px;">
+        ♾️ Keep Flying Forever
+      </button>
+      <button id="summary-reset-btn" class="icon-btn" style="padding: 10px 20px;">
+        ↩ Return to Hangar
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // =========================================================
+    // 1. CONSTANTS, PART DEFINITIONS & GAME STATE
+    // =========================================================
+    const LIGHT_YEAR_M = 9.4607e15;
+    const SPEED_OF_LIGHT = 299792458; // m/s
+    const ANDROMEDA_LY = 2537000;     // 2.537 million light-years
+    const ANDROMEDA_M = ANDROMEDA_LY * LIGHT_YEAR_M;
+    const FLOATING_ORIGIN_THRESHOLD = 1400;
+
+    // Andromeda lies slightly angled upward-right so steering / guidance is meaningful
+    const TARGET_DIR = new THREE.Vector3(0.11, 0.993, -0.04).normalize();
+    const ANDROMEDA_POS_M = TARGET_DIR.clone().multiplyScalar(ANDROMEDA_M);
+
+    const CORE_STATS = {
+      name: 'Interstellar Core',
+      weight: 1.8,
+      height: 1.85
+    };
+
+    const PARTS = {
+      nose: {
+        standard: { name: 'Standard', weight: 0.8, drag: 0.62, height: 1.5 },
+        aerodynamic: { name: 'Aerodynamic', weight: 0.5, drag: 0.28, height: 2.3 },
+        warp: { name: 'Warp Shield', weight: 0.4, drag: 0.06, height: 2.5 }
+      },
+      tank: {
+        small: { name: 'Small Tank', dryWeight: 1.2, fuelWeight: 3.0, fuelCapacity: 100, infinite: false, height: 2.2, radius: 0.68 },
+        large: { name: 'Large Tank', dryWeight: 2.2, fuelWeight: 7.0, fuelCapacity: 240, infinite: false, height: 4.1, radius: 0.82 },
+        quantum: { name: 'Quantum Core', dryWeight: 2.4, fuelWeight: 0, fuelCapacity: Infinity, infinite: true, height: 3.3, radius: 0.78 }
+      },
+      thruster: {
+        basic: { name: 'Basic', weight: 1.5, thrust: 155, burnRate: 9, warpMult: 0.75, height: 1.15, isWarp: false },
+        heavy: { name: 'Heavy', weight: 3.2, thrust: 340, burnRate: 18, warpMult: 1.05, height: 1.45, isWarp: false },
+        warp: { name: 'Warp Drive', weight: 2.8, thrust: 560, burnRate: 12, warpMult: 1.55, height: 1.7, isWarp: true }
+      }
+    };
+
+    const state = {
+      mode: 'build',
+      infiniteMode: true,
+      soundEnabled: true,
+      autoGuide: false,
+      config: {
+        nose: 'warp',
+        tank: 'quantum',
+        thruster: 'warp'
+      },
+      // pos = local Three.js render coords (kept near 0,0,0 in space); cosmicPos = true position in meters
+      pos: new THREE.Vector3(0, 0, 0),
+      cosmicPos: new THREE.Vector3(0, 0, 0),
+      vel: new THREE.Vector3(0, 0, 0),
+      tiltAngle: 0,
+      tiltYaw: 0,
+      angularVel: 0,
+      throttle: 1.0,
+      fuel: Infinity,
+      maxFuel: Infinity,
+      maxDistanceM: 0,
+      maxSpeed: 0,
+      flightTime: 0,
+      hasLiftedOff: false,
+      fuelDepletedAnnounced: false,
+      andromedaReached: false,
+      foreverConfirmed: false,
+      ended: false,
+      padTopY: 0.6,
+      nozzleLocalY: 0,
+      milestonesHit: new Set()
+    };
+
+    const keys = {
+      left: false,
+      right: false,
+      throttleUp: false,
+      throttleDown: false,
+      warpBoost: false,
+      brake: false
+    };
+
+    // =========================================================
+    // 2. PROCEDURAL AUDIO ENGINE (ROCKET + WARP SYNTH)
+    // =========================================================
+    class RocketAudio {
+      constructor() {
+        this.ctx = null;
+        this.running = false;
+      }
+
+      init() {
+        if (this.ctx) return;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
+      }
+
+      playClick(freq = 540) {
+        if (!state.soundEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.4, this.ctx.currentTime + 0.06);
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+        osc.connect(gain).connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.09);
+      }
+
+      playChime(baseFreq = 523.25) {
+        if (!state.soundEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
+        const notes = [baseFreq, baseFreq * 1.25, baseFreq * 1.5, baseFreq * 2];
+        notes.forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const t = this.ctx.currentTime + idx * 0.08;
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, t);
+          gain.gain.setValueAtTime(0.001, t);
+          gain.gain.linearRampToValueAtTime(0.09, t + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+          osc.connect(gain).connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.58);
+        });
+      }
+
+      startEngine() {
+        if (!state.soundEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (this.running) return;
+
+        const bufferSize = this.ctx.sampleRate * 2;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        this.noiseSrc = this.ctx.createBufferSource();
+        this.noiseSrc.buffer = buffer;
+        this.noiseSrc.loop = true;
+
+        this.filter = this.ctx.createBiquadFilter();
+        this.filter.type = 'lowpass';
+        this.filter.frequency.value = 380;
+
+        this.noiseGain = this.ctx.createGain();
+        this.noiseGain.gain.value = 0;
+        this.noiseSrc.connect(this.filter).connect(this.noiseGain).connect(this.ctx.destination);
+        this.noiseSrc.start();
+
+        this.rumbleOsc = this.ctx.createOscillator();
+        this.rumbleOsc.type = 'sawtooth';
+        this.rumbleOsc.frequency.value = 48;
+        this.rumbleGain = this.ctx.createGain();
+        this.rumbleGain.gain.value = 0;
+        this.rumbleOsc.connect(this.rumbleGain).connect(this.ctx.destination);
+        this.rumbleOsc.start();
+
+        this.warpOsc = this.ctx.createOscillator();
+        this.warpOsc.type = 'sine';
+        this.warpOsc.frequency.value = 110;
+        this.warpGain = this.ctx.createGain();
+        this.warpGain.gain.value = 0;
+        this.warpOsc.connect(this.warpGain).connect(this.ctx.destination);
+        this.warpOsc.start();
+
+        this.running = true;
+      }
+
+      updateEngine(thrustRatio, warpRatio = 0) {
+        if (!this.running || !this.ctx) return;
+        const active = state.soundEnabled ? thrustRatio : 0;
+        const now = this.ctx.currentTime;
+        const atmoFade = Math.max(0.18, 1 - warpRatio * 0.75);
+
+        this.noiseGain.gain.setTargetAtTime(active * 0.2 * atmoFade, now, 0.06);
+        this.rumbleGain.gain.setTargetAtTime(active * 0.065 * atmoFade, now, 0.06);
+        this.filter.frequency.setTargetAtTime(160 + active * 700, now, 0.06);
+
+        this.warpGain.gain.setTargetAtTime(active * warpRatio * 0.09, now, 0.08);
+        this.warpOsc.frequency.setTargetAtTime(95 + warpRatio * 140 + (keys.warpBoost ? 65 : 0), now, 0.1);
+      }
+
+      stopEngine() {
+        if (!this.running) return;
+        try {
+          this.noiseSrc.stop();
+          this.rumbleOsc.stop();
+          this.warpOsc.stop();
+        } catch (_) {}
+        this.running = false;
+      }
+
+      playBoom() {
+        if (!state.soundEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(130, now);
+        osc.frequency.exponentialRampToValueAtTime(24, now + 0.55);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain).connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.62);
+      }
+    }
+
+    const audio = new RocketAudio();
+
+    // =========================================================
+    // 3. THREE.JS SCENE, LIGHTING & TEXTURES
+    // =========================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+
+    const daySkyColor = new THREE.Color(0x5fa8e8);
+    const highSkyColor = new THREE.Color(0x162447);
+    const spaceColor = new THREE.Color(0x02040a);
+
+    scene.background = daySkyColor.clone();
+    scene.fog = new THREE.FogExp2(0x7cb9ed, 0.0018);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
+    camera.position.set(8.5, 6.2, 11.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enablePan = true;
+    controls.target.set(0, 3.6, 0);
+    controls.minDistance = 4;
+    controls.maxDistance = 32;
+    controls.maxPolarAngle = Math.PI * 0.49;
+
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.9);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+    sunLight.position.set(28, 45, 22);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.camera.near = 5;
+    sunLight.shadow.camera.far = 140;
+    const d = 24;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0005;
+    scene.add(sunLight);
+
+    const thrusterLight = new THREE.PointLight(0x38bdf8, 0, 32, 1.4);
+    scene.add(thrusterLight);
+
+    function createCautionTexture() {
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.fillStyle = '#111827';
+      for (let i = -64; i < 320; i += 48) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0); ctx.lineTo(i + 24, 0);
+        ctx.lineTo(i - 12, 64); ctx.lineTo(i - 36, 64);
+        ctx.closePath(); ctx.fill();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.repeat.set(6, 1);
+      return tex;
+    }
+
+    function createCheckerTexture() {
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 64;
+      const ctx = c.getContext('2d');
+      const cols = 8, w = 256 / cols;
+      for (let i = 0; i < cols; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#0f172a' : '#f8fafc';
+        ctx.fillRect(i * w, 0, w, 32);
+        ctx.fillStyle = i % 2 === 0 ? '#f8fafc' : '#0f172a';
+        ctx.fillRect(i * w, 32, w, 32);
+      }
+      return new THREE.CanvasTexture(c);
+    }
+
+    function createRadialSpriteTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const ctx = c.getContext('2d');
+      const grad = ctx.createRadialGradient(32, 32, 1, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+
+    function createEarthTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 256;
+      const ctx = c.getContext('2d');
+      const ocean = ctx.createLinearGradient(0, 0, 0, 256);
+      ocean.addColorStop(0, '#93c5fd');
+      ocean.addColorStop(0.15, '#1d4ed8');
+      ocean.addColorStop(0.5, '#0369a1');
+      ocean.addColorStop(0.85, '#1d4ed8');
+      ocean.addColorStop(1, '#dbeafe');
+      ctx.fillStyle = ocean;
+      ctx.fillRect(0, 0, 512, 256);
+
+      ctx.fillStyle = '#2e7d32';
+      for (let i = 0; i < 45; i++) {
+        const x = (Math.sin(i * 12.9898) * 0.5 + 0.5) * 512;
+        const y = 38 + (Math.cos(i * 78.233) * 0.5 + 0.5) * 180;
+        const rx = 14 + (i % 5) * 11;
+        const ry = 8 + (i % 4) * 7;
+        ctx.beginPath();
+        ctx.ellipse(x, y, rx, ry, i * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.42)';
+      for (let i = 0; i < 55; i++) {
+        const x = (Math.sin(i * 41.2) * 0.5 + 0.5) * 512;
+        const y = 20 + (Math.cos(i * 19.7) * 0.5 + 0.5) * 216;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 22 + (i % 4) * 10, 4 + (i % 3) * 2, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+
+    const cautionTex = createCautionTexture();
+    const checkerTex = createCheckerTexture();
+    const particleTex = createRadialSpriteTexture();
+    const earthTex = createEarthTexture();
+
+    // =========================================================
+    // 4. LAUNCHPAD WORLD, EARTH, STREAMING STARS & GALAXIES
+    // =========================================================
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(1600, 64).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0x3b4d3b, roughness: 0.95, metalness: 0.05 })
+    );
+    ground.receiveShadow = true;
+    worldGroup.add(ground);
+
+    const apron = new THREE.Mesh(
+      new THREE.CylinderGeometry(18, 19, 0.14, 32),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 })
+    );
+    apron.position.y = 0.07;
+    apron.receiveShadow = true;
+    worldGroup.add(apron);
+
+    const padDeck = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.4, 5.2, 0.6, 8),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, metalness: 0.3 })
+    );
+    padDeck.position.y = 0.3;
+    padDeck.castShadow = true;
+    padDeck.receiveShadow = true;
+    worldGroup.add(padDeck);
+
+    const cautionRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.45, 4.45, 0.16, 8, 1, true),
+      new THREE.MeshStandardMaterial({ map: cautionTex, roughness: 0.6 })
+    );
+    cautionRing.position.y = 0.52;
+    worldGroup.add(cautionRing);
+
+    const grate = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 1.5, 0.06, 16),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.8 })
+    );
+    grate.position.y = 0.61;
+    worldGroup.add(grate);
+
+    const towerGroup = new THREE.Group();
+    towerGroup.position.set(-4.3, 0.6, -1.6);
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5, metalness: 0.6 });
+    const darkSteelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.7 });
+    for (const [px, pz] of [[-0.55,-0.55],[0.55,-0.55],[-0.55,0.55],[0.55,0.55]]) {
+      const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, 10.5, 0.16), towerMat);
+      col.position.set(px, 5.25, pz);
+      col.castShadow = true;
+      towerGroup.add(col);
+    }
+    for (let y = 1.5; y <= 9.5; y += 2) {
+      const platform = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 1.4), darkSteelMat);
+      platform.position.set(0, y, 0);
+      towerGroup.add(platform);
+    }
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.22, 0.26), towerMat);
+    arm.position.set(1.6, 5.6, 0.9);
+    arm.rotation.y = -0.35;
+    towerGroup.add(arm);
+    worldGroup.add(towerGroup);
+
+    const hillMat = new THREE.MeshStandardMaterial({ color: 0x2c3e35, roughness: 0.95 });
+    for (let i = 0; i < 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const dist = 260 + (i % 3) * 75;
+      const h = 35 + ((i * 19) % 45);
+      const r = 55 + ((i * 13) % 40);
+      const hill = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), hillMat);
+      hill.position.set(Math.cos(ang) * dist, h * 0.45, Math.sin(ang) * dist);
+      worldGroup.add(hill);
+    }
+
+    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 38; i++) {
+      const cloud = new THREE.Group();
+      for (let p = 0; p < 3; p++) {
+        const s = 8 + Math.random() * 14;
+        const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 10, 8), cloudMat);
+        puff.position.set((p - 1) * s * 0.9, Math.random() * 3, Math.random() * 6);
+        puff.scale.y = 0.55;
+        cloud.add(puff);
+      }
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 90 + Math.random() * 340;
+      cloud.position.set(Math.cos(ang) * dist, 90 + Math.random() * 900, Math.sin(ang) * dist);
+      worldGroup.add(cloud);
+    }
+
+    // 3D Earth Sphere
+    const earthGroup = new THREE.Group();
+    const earthMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 48, 36),
+      new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.75, metalness: 0.08 })
+    );
+    earthGroup.add(earthMesh);
+    const atmoHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(1.04, 48, 36),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.BackSide
+      })
+    );
+    earthGroup.add(atmoHalo);
+    earthGroup.visible = false;
+    scene.add(earthGroup);
+
+    // 3D Moon
+    const moonMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 32, 24),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.95 })
+    );
+    moonMesh.visible = false;
+    scene.add(moonMesh);
+
+    // Infinite Wrapping Star Box
+    const STREAM_STAR_COUNT = 2200;
+    const STREAM_BOX = 600;
+    const streamStarPos = new Float32Array(STREAM_STAR_COUNT * 3);
+    const streamStarCol = new Float32Array(STREAM_STAR_COUNT * 3);
+    const starPalette = [
+      new THREE.Color(0xffffff),
+      new THREE.Color(0xbae6fd),
+      new THREE.Color(0xfef08a),
+      new THREE.Color(0xe9d5ff),
+      new THREE.Color(0xfecdd3)
+    ];
+
+    for (let i = 0; i < STREAM_STAR_COUNT; i++) {
+      streamStarPos[i * 3] = (Math.random() - 0.5) * STREAM_BOX;
+      streamStarPos[i * 3 + 1] = (Math.random() - 0.5) * STREAM_BOX;
+      streamStarPos[i * 3 + 2] = (Math.random() - 0.5) * STREAM_BOX;
+      const col = starPalette[i % starPalette.length];
+      const b = 0.6 + Math.random() * 0.4;
+      streamStarCol[i * 3] = col.r * b;
+      streamStarCol[i * 3 + 1] = col.g * b;
+      streamStarCol[i * 3 + 2] = col.b * b;
+    }
+
+    const streamStarGeo = new THREE.BufferGeometry();
+    streamStarGeo.setAttribute('position', new THREE.BufferAttribute(streamStarPos, 3));
+    streamStarGeo.setAttribute('color', new THREE.BufferAttribute(streamStarCol, 3));
+    const streamStarMat = new THREE.PointsMaterial({
+      size: 2.4,
+      map: particleTex,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false
+    });
+    const streamStars = new THREE.Points(streamStarGeo, streamStarMat);
+    streamStars.frustumCulled = false;
+    scene.add(streamStars);
+
+    // Warp Speed Lines
+    const WARP_LINE_COUNT = 240;
+    const warpLinePos = new Float32Array(WARP_LINE_COUNT * 6);
+    const warpSeeds = [];
+    for (let i = 0; i < WARP_LINE_COUNT; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 12 + Math.random() * 95;
+      warpSeeds.push({
+        cos: Math.cos(ang) * rad,
+        sin: Math.sin(ang) * rad,
+        along: (Math.random() - 0.5) * 260
+      });
+    }
+    const warpLineGeo = new THREE.BufferGeometry();
+    warpLineGeo.setAttribute('position', new THREE.BufferAttribute(warpLinePos, 3));
+    const warpLineMat = new THREE.LineBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      fog: false
+    });
+    const warpLines = new THREE.LineSegments(warpLineGeo, warpLineMat);
+    warpLines.frustumCulled = false;
+    scene.add(warpLines);
+
+    // =========================================================
+    // 5. 3D SPIRAL ANDROMEDA GALAXY & DEEP-SPACE GALAXIES
+    // =========================================================
+    function createSpiralGalaxy(coreColorHex = 0xffedd5, armColorHex = 0x38bdf8, outerColorHex = 0xc084fc, starCount = 4200) {
+      const g = new THREE.Group();
+      const positions = new Float32Array(starCount * 3);
+      const colors = new Float32Array(starCount * 3);
+
+      const coreCol = new THREE.Color(coreColorHex);
+      const armCol = new THREE.Color(armColorHex);
+      const outerCol = new THREE.Color(outerColorHex);
+      const tmp = new THREE.Color();
+
+      const arms = 3;
+      const radius = 100;
+
+      for (let i = 0; i < starCount; i++) {
+        const r = Math.pow(Math.random(), 1.65) * radius;
+        const spin = r * 0.085;
+        const armAngle = ((i % arms) / arms) * Math.PI * 2;
+        const scatter = (Math.random() - 0.5) * (0.45 + (r / radius) * 0.9);
+        const angle = armAngle + spin + scatter;
+
+        const spreadY = (Math.random() - 0.5) * (14 * Math.exp(-r / 35) + 2.5);
+        positions[i * 3] = Math.cos(angle) * r;
+        positions[i * 3 + 1] = spreadY;
+        positions[i * 3 + 2] = Math.sin(angle) * r;
+
+        const t = r / radius;
+        if (t < 0.28) {
+          tmp.copy(coreCol).lerp(armCol, t / 0.28);
+        } else {
+          tmp.copy(armCol).lerp(outerCol, (t - 0.28) / 0.72);
+        }
+        const bright = 0.65 + Math.random() * 0.35;
+        colors[i * 3] = tmp.r * bright;
+        colors[i * 3 + 1] = tmp.g * bright;
+        colors[i * 3 + 2] = tmp.b * bright;
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const mat = new THREE.PointsMaterial({
+        size: 3.4,
+        map: particleTex,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+
+      const points = new THREE.Points(geo, mat);
+      g.add(points);
+
+      const spriteMat = new THREE.SpriteMaterial({
+        map: particleTex,
+        color: coreColorHex,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      });
+      const coreSprite = new THREE.Sprite(spriteMat);
+      coreSprite.scale.set(70, 70, 1);
+      g.add(coreSprite);
+
+      g.rotation.x = 1.05;
+      g.rotation.z = 0.35;
+      return g;
+    }
+
+    const andromedaGroup = createSpiralGalaxy(0xffe4b5, 0x60a5fa, 0xc084fc, 4800);
+    andromedaGroup.visible = false;
+    scene.add(andromedaGroup);
+
+    const deepGalaxies = [];
+    for (let i = 0; i < 4; i++) {
+      const pal = [
+        [0xfef08a, 0x38bdf8, 0xf472b6],
+        [0xffedd5, 0xa855f7, 0x38bdf8],
+        [0xe0f2fe, 0x818cf8, 0xfb7185],
+        [0xfde68a, 0x34d399, 0x60a5fa]
+      ][i];
+      const dg = createSpiralGalaxy(pal[0], pal[1], pal[2], 1800);
+      dg.visible = false;
+      scene.add(dg);
+      deepGalaxies.push({
+        mesh: dg,
+        distLY: (5500000 + i * 4800000),
+        dir: new THREE.Vector3(
+          (Math.random() - 0.5) * 0.4 + TARGET_DIR.x,
+          TARGET_DIR.y,
+          (Math.random() - 0.5) * 0.4 + TARGET_DIR.z
+        ).normalize()
+      });
+    }
+
+    // =========================================================
+    // 6. MODULAR 3D ROCKET BUILDER
+    // =========================================================
+    const rocketGroup = new THREE.Group();
+    scene.add(rocketGroup);
+
+    const matWhiteHull = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35, metalness: 0.25 });
+    const matMetalDark = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.75 });
+    const matMetalSilver = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.25, metalness: 0.85 });
+    const matGoldFoil = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3, metalness: 0.85 });
+    const matOrangeAccent = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.4, metalness: 0.2 });
+    const matBlueAccent = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.35 });
+    const matChecker = new THREE.MeshStandardMaterial({ map: checkerTex, roughness: 0.4, metalness: 0.2 });
+    const matQuantumGlow = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 1.4,
+      roughness: 0.2,
+      metalness: 0.5
+    });
+    const matPurpleGlow = new THREE.MeshStandardMaterial({
+      color: 0xc084fc,
+      emissive: 0x9333ea,
+      emissiveIntensity: 1.3,
+      roughness: 0.2,
+      metalness: 0.5
+    });
+    const matNozzleGlow = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      emissive: 0xff5500,
+      emissiveIntensity: 0,
+      roughness: 0.5,
+      metalness: 0.7
+    });
+
+    const animatedParts = [];
+
+    function createBellNozzle(scale = 1) {
+      const pts = [
+        new THREE.Vector2(0.08 * scale, 0.55 * scale),
+        new THREE.Vector2(0.22 * scale, 0.42 * scale),
+        new THREE.Vector2(0.16 * scale, 0.25 * scale),
+        new THREE.Vector2(0.32 * scale, -0.18 * scale),
+        new THREE.Vector2(0.38 * scale, -0.45 * scale)
+      ];
+      const mesh = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), matMetalDark);
+      mesh.castShadow = true;
+
+      const inner = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14 * scale, 0.32 * scale, 0.55 * scale, 16, 1, true),
+        matNozzleGlow
+      );
+      inner.position.y = -0.16 * scale;
+      mesh.add(inner);
+      return mesh;
+    }
+
+    function createStarterCoreMesh() {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, CORE_STATS.height, 28), matWhiteHull);
+      body.castShadow = true;
+      g.add(body);
+
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.655, 0.655, 0.34, 28), matGoldFoil);
+      band.position.y = 0.25;
+      g.add(band);
+
+      const topCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.14, 28), matMetalDark);
+      topCollar.position.y = 0.85;
+      g.add(topCollar);
+
+      const botCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.14, 28), matMetalDark);
+      botCollar.position.y = -0.85;
+      g.add(botCollar);
+
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2;
+        const pod = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.45, 0.14), matMetalSilver);
+        pod.position.set(Math.cos(ang) * 0.64, -0.22, Math.sin(ang) * 0.64);
+        pod.rotation.y = -ang;
+        g.add(pod);
+      }
+      return g;
+    }
+
+    function createNoseConeMesh(type) {
+      const g = new THREE.Group();
+      if (type === 'standard') {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.64, 1.35, 28), matWhiteHull);
+        cone.position.y = 0.825;
+        cone.castShadow = true;
+        g.add(cone);
+
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.45, 24), matOrangeAccent);
+        tip.position.y = 1.28;
+        g.add(tip);
+
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.16, 28), matMetalDark);
+        base.position.y = 0.08;
+        g.add(base);
+      } else if (type === 'aerodynamic') {
+        const pts = [];
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16;
+          pts.push(new THREE.Vector2(Math.max(0.02, 0.65 * Math.pow(1 - t, 0.62)), t * 2.15 + 0.12));
+        }
+        const ogive = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), matMetalSilver);
+        ogive.castShadow = true;
+        g.add(ogive);
+
+        const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.655, 0.655, 0.18, 28), matBlueAccent);
+        stripe.position.y = 0.09;
+        g.add(stripe);
+
+        const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.04, 0.35, 10), matMetalDark);
+        spire.position.y = 2.35;
+        g.add(spire);
+      } else if (type === 'warp') {
+        const pts = [];
+        for (let i = 0; i <= 18; i++) {
+          const t = i / 18;
+          pts.push(new THREE.Vector2(Math.max(0.025, 0.66 * Math.pow(1 - t, 0.55)), t * 2.32 + 0.12));
+        }
+        const hull = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), matMetalDark);
+        hull.castShadow = true;
+        g.add(hull);
+
+        for (const ry of [0.45, 1.05, 1.65]) {
+          const rSize = ry < 0.6 ? 0.61 : ry < 1.2 ? 0.47 : 0.31;
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(rSize, 0.032, 12, 32), matQuantumGlow);
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = ry;
+          g.add(ring);
+        }
+
+        const emitter = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), matQuantumGlow);
+        emitter.position.y = 2.46;
+        g.add(emitter);
+      }
+      return g;
+    }
+
+    function createFuelTankMesh(type) {
+      const g = new THREE.Group();
+      const spec = PARTS.tank[type];
+      const r = spec.radius, h = spec.height;
+
+      if (type === 'quantum') {
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r * 0.72, h, 28), matMetalDark);
+        core.position.y = h / 2;
+        core.castShadow = true;
+        g.add(core);
+
+        const energyCore = new THREE.Mesh(
+          new THREE.CylinderGeometry(r * 0.52, r * 0.52, h * 0.78, 24),
+          matQuantumGlow
+        );
+        energyCore.position.y = h / 2;
+        g.add(energyCore);
+
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const strut = new THREE.Mesh(new THREE.BoxGeometry(0.12, h * 0.96, 0.16), matMetalSilver);
+          strut.position.set(Math.cos(ang) * (r * 0.84), h / 2, Math.sin(ang) * (r * 0.84));
+          strut.rotation.y = -ang;
+          g.add(strut);
+        }
+
+        for (let idx = 0; idx < 2; idx++) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.02, 0.055, 14, 36), matPurpleGlow);
+          ring.position.y = h * (idx === 0 ? 0.32 : 0.68);
+          ring.rotation.x = Math.PI / 2 + (idx === 0 ? 0.12 : -0.12);
+          g.add(ring);
+          animatedParts.push({ mesh: ring, speed: idx === 0 ? 1.8 : -2.2 });
+        }
+
+        const adapter = new THREE.Mesh(new THREE.CylinderGeometry(0.65, r * 0.88, 0.25, 32), matMetalDark);
+        adapter.position.y = h - 0.05;
+        g.add(adapter);
+        return g;
+      }
+
+      const main = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32), matWhiteHull);
+      main.position.y = h / 2;
+      main.castShadow = true;
+      g.add(main);
+
+      if (type === 'small') {
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.01, r + 0.01, 0.45, 32), matOrangeAccent);
+        band.position.y = h * 0.65;
+        g.add(band);
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, h * 0.85, 12), matMetalSilver);
+        pipe.position.set(r + 0.04, h / 2, 0);
+        g.add(pipe);
+      } else {
+        const checkerBand = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.012, r + 0.012, 0.55, 32), matChecker);
+        checkerBand.position.y = h * 0.82;
+        g.add(checkerBand);
+        const midBand = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.01, r + 0.01, 0.35, 32), matOrangeAccent);
+        midBand.position.y = h * 0.25;
+        g.add(midBand);
+        for (const s of [-1, 1]) {
+          const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h * 0.9, 12), matMetalSilver);
+          pipe.position.set(s * (r + 0.05), h / 2, 0);
+          g.add(pipe);
+        }
+        const adapter = new THREE.Mesh(new THREE.CylinderGeometry(0.65, r, 0.26, 32), matMetalDark);
+        adapter.position.y = h + 0.05;
+        g.add(adapter);
+      }
+      return g;
+    }
+
+    function createThrusterMesh(type, tankRadius = 0.66) {
+      const g = new THREE.Group();
+      const spec = PARTS.thruster[type];
+
+      if (type === 'basic') {
+        const housing = new THREE.Mesh(new THREE.CylinderGeometry(tankRadius * 0.92, 0.48, 0.45, 24), matMetalDark);
+        housing.position.y = spec.height - 0.22;
+        g.add(housing);
+        const bell = createBellNozzle(1.0);
+        bell.position.y = 0.45;
+        g.add(bell);
+
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0); shape.lineTo(0.55, -0.15); shape.lineTo(0.55, 0.35); shape.lineTo(0, 0.85);
+          shape.closePath();
+          const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: false }), matOrangeAccent);
+          fin.position.set(Math.cos(ang) * 0.42, 0.32, Math.sin(ang) * 0.42);
+          fin.rotation.y = -ang;
+          g.add(fin);
+        }
+      } else if (type === 'heavy') {
+        const housing = new THREE.Mesh(
+          new THREE.CylinderGeometry(Math.max(tankRadius * 0.96, 0.72), 0.78, 0.6, 28),
+          matMetalDark
+        );
+        housing.position.y = spec.height - 0.3;
+        g.add(housing);
+
+        const mainBell = createBellNozzle(1.18);
+        mainBell.position.set(0, 0.52, 0);
+        g.add(mainBell);
+        for (const s of [-1, 1]) {
+          const sideBell = createBellNozzle(0.68);
+          sideBell.position.set(s * 0.48, 0.48, 0);
+          g.add(sideBell);
+        }
+
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0); shape.lineTo(0.82, -0.2); shape.lineTo(0.82, 0.45); shape.lineTo(0, 1.15);
+          shape.closePath();
+          const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.07, bevelEnabled: false }), matBlueAccent);
+          fin.position.set(Math.cos(ang) * 0.65, 0.35, Math.sin(ang) * 0.65);
+          fin.rotation.y = -ang;
+          g.add(fin);
+        }
+      } else if (type === 'warp') {
+        const housing = new THREE.Mesh(
+          new THREE.CylinderGeometry(Math.max(tankRadius * 0.96, 0.72), 0.85, 0.65, 32),
+          matMetalDark
+        );
+        housing.position.y = spec.height - 0.32;
+        g.add(housing);
+
+        const coreSphere = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), matQuantumGlow);
+        coreSphere.position.y = 0.68;
+        g.add(coreSphere);
+
+        [0.62, 0.44, 0.25].forEach((y, idx) => {
+          const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(0.62 - idx * 0.09, 0.05, 14, 32),
+            idx % 2 === 0 ? matQuantumGlow : matPurpleGlow
+          );
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = y;
+          g.add(ring);
+        });
+
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0.1);
+          shape.lineTo(0.95, -0.25);
+          shape.lineTo(0.95, 0.35);
+          shape.lineTo(0, 1.3);
+          shape.closePath();
+          const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false }), matMetalSilver);
+          fin.position.set(Math.cos(ang) * 0.62, 0.35, Math.sin(ang) * 0.62);
+          fin.rotation.y = -ang;
+          g.add(fin);
+        }
+      }
+      return g;
+    }
+
+    let buildAnimScale = 1;
+
+    function rebuildRocketMesh() {
+      animatedParts.length = 0;
+      while (rocketGroup.children.length > 0) {
+        rocketGroup.remove(rocketGroup.children[0]);
+      }
+
+      const thrusterSpec = state.config.thruster ? PARTS.thruster[state.config.thruster] : null;
+      const tankSpec = state.config.tank ? PARTS.tank[state.config.tank] : null;
+      const noseSpec = state.config.nose ? PARTS.nose[state.config.nose] : null;
+
+      let cursorY = 0;
+      if (thrusterSpec) {
+        const tankR = tankSpec ? tankSpec.radius : 0.65;
+        const thrusterMesh = createThrusterMesh(state.config.thruster, tankR);
+        thrusterMesh.position.y = cursorY;
+        rocketGroup.add(thrusterMesh);
+        state.nozzleLocalY = 0.05;
+        cursorY += thrusterSpec.height;
+      } else {
+        state.nozzleLocalY = 0;
+      }
+
+      if (tankSpec) {
+        const tankMesh = createFuelTankMesh(state.config.tank);
+        tankMesh.position.y = cursorY;
+        rocketGroup.add(tankMesh);
+        cursorY += tankSpec.height;
+      }
+
+      const coreMesh = createStarterCoreMesh();
+      coreMesh.position.y = cursorY + CORE_STATS.height / 2;
+      rocketGroup.add(coreMesh);
+      cursorY += CORE_STATS.height;
+
+      if (noseSpec) {
+        const noseMesh = createNoseConeMesh(state.config.nose);
+        noseMesh.position.y = cursorY;
+        rocketGroup.add(noseMesh);
+        cursorY += noseSpec.height;
+      }
+
+      rocketGroup.position.set(0, state.padTopY, 0);
+      rocketGroup.rotation.set(0, 0, 0);
+      controls.target.set(0, state.padTopY + cursorY * 0.48, 0);
+      buildAnimScale = 0.92;
+
+      updateBuildStats();
+    }
+
+    function computeRocketSpecs(fuelRatio = 1) {
+      let weight = CORE_STATS.weight;
+      let thrust = 0;
+      let fuelCapacity = 0;
+      let burnRate = 0;
+      let dragCoeff = 1.15;
+      let warpMult = 0.75;
+      let isInfiniteFuel = state.infiniteMode;
+      let isWarpThruster = false;
+
+      if (state.config.nose) {
+        const n = PARTS.nose[state.config.nose];
+        weight += n.weight;
+        dragCoeff = n.drag;
+      }
+      if (state.config.tank) {
+        const t = PARTS.tank[state.config.tank];
+        weight += t.dryWeight + t.fuelWeight * fuelRatio;
+        if (t.infinite) {
+          isInfiniteFuel = true;
+          fuelCapacity = Infinity;
+        } else {
+          fuelCapacity = isInfiniteFuel ? Infinity : t.fuelCapacity;
+        }
+      }
+      if (state.config.thruster) {
+        const th = PARTS.thruster[state.config.thruster];
+        weight += th.weight;
+        thrust = th.thrust;
+        burnRate = th.burnRate;
+        warpMult = th.warpMult;
+        isWarpThruster = th.isWarp;
+      }
+
+      const weightForceKN = weight * 9.81;
+      const twr = weightForceKN > 0 ? thrust / weightForceKN : 0;
+      return { weight, thrust, fuelCapacity, burnRate, dragCoeff, twr, warpMult, isInfiniteFuel, isWarpThruster };
+    }
+
+    // =========================================================
+    // 7. PARTICLE SYSTEM (CHEMICAL + QUANTUM WARP PLASMA)
+    // =========================================================
+    const MAX_PARTICLES = 600;
+    const pPositions = new Float32Array(MAX_PARTICLES * 3);
+    const pColors = new Float32Array(MAX_PARTICLES * 3);
+    const particles = [];
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      particles.push({ active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1, mode: 'fire' });
+      pPositions[i * 3 + 1] = -9999;
+    }
+
+    const particleGeo = new THREE.BufferGeometry();
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+    particleGeo.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+    const particleMat = new THREE.PointsMaterial({
+      size: 1.65,
+      map: particleTex,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true
+    });
+    const particleSystem = new THREE.Points(particleGeo, particleMat);
+    particleSystem.frustumCulled = false;
+    scene.add(particleSystem);
+
+    const MAX_SMOKE = 240;
+    const sPositions = new Float32Array(MAX_SMOKE * 3);
+    const sColors = new Float32Array(MAX_SMOKE * 3);
+    const smokeParticles = [];
+    for (let i = 0; i < MAX_SMOKE; i++) {
+      smokeParticles.push({ active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1 });
+      sPositions[i * 3 + 1] = -9999;
+    }
+    const smokeGeo = new THREE.BufferGeometry();
+    smokeGeo.setAttribute('position', new THREE.BufferAttribute(sPositions, 3));
+    smokeGeo.setAttribute('color', new THREE.BufferAttribute(sColors, 3));
+    const smokeMat = new THREE.PointsMaterial({
+      size: 3.4,
+      map: particleTex,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      sizeAttenuation: true
+    });
+    const smokeSystem = new THREE.Points(smokeGeo, smokeMat);
+    smokeSystem.frustumCulled = false;
+    scene.add(smokeSystem);
+
+    let pCursor = 0;
+    function spawnFlameParticle(origin, dir, speed, spread = 0.25, mode = 'fire') {
+      const p = particles[pCursor];
+      pCursor = (pCursor + 1) % MAX_PARTICLES;
+      p.active = true;
+      p.x = origin.x + (Math.random() - 0.5) * 0.28;
+      p.y = origin.y + (Math.random() - 0.5) * 0.16;
+      p.z = origin.z + (Math.random() - 0.5) * 0.28;
+      p.vx = dir.x * speed + (Math.random() - 0.5) * spread * speed;
+      p.vy = dir.y * speed + (Math.random() - 0.5) * spread * speed;
+      p.vz = dir.z * speed + (Math.random() - 0.5) * spread * speed;
+      p.life = 0;
+      p.maxLife = 0.2 + Math.random() * 0.24;
+      p.mode = mode;
+    }
+
+    let sCursor = 0;
+    function spawnSmokeParticle(x, y, z, vx, vy, vz, maxLife = 1.4) {
+      const s = smokeParticles[sCursor];
+      sCursor = (sCursor + 1) % MAX_SMOKE;
+      s.active = true;
+      s.x = x; s.y = y; s.z = z;
+      s.vx = vx; s.vy = vy; s.vz = vz;
+      s.life = 0; s.maxLife = maxLife;
+    }
+
+    function spawnExplosion(pos) {
+      for (let i = 0; i < 120; i++) {
+        const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9, Math.random() - 0.5).normalize();
+        spawnFlameParticle(pos, dir, 6 + Math.random() * 18, 0.4, 'fire');
+      }
+      for (let i = 0; i < 60; i++) {
+        spawnSmokeParticle(
+          pos.x + (Math.random() - 0.5) * 2, pos.y + 0.5, pos.z + (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 14, 2 + Math.random() * 10, (Math.random() - 0.5) * 14, 2.0
+        );
+      }
+    }
+
+    function shiftAllParticles(offset) {
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        if (particles[i].active) {
+          particles[i].x += offset.x;
+          particles[i].y += offset.y;
+          particles[i].z += offset.z;
+        }
+      }
+      for (let i = 0; i < MAX_SMOKE; i++) {
+        if (smokeParticles[i].active) {
+          smokeParticles[i].x += offset.x;
+          smokeParticles[i].y += offset.y;
+          smokeParticles[i].z += offset.z;
+        }
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        const p = particles[i];
+        if (!p.active) continue;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          pPositions[i * 3 + 1] = -9999;
+          continue;
+        }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        const t = p.life / p.maxLife;
+        pPositions[i * 3] = p.x;
+        pPositions[i * 3 + 1] = p.y;
+        pPositions[i * 3 + 2] = p.z;
+
+        if (p.mode === 'plasma') {
+          const fade = 1 - t;
+          if (t < 0.25) {
+            pColors[i * 3] = 0.85;
+            pColors[i * 3 + 1] = 0.98;
+            pColors[i * 3 + 2] = 1.0;
+          } else {
+            pColors[i * 3] = (0.35 + t * 0.45) * fade;
+            pColors[i * 3 + 1] = Math.max(0.15, 0.95 - t * 0.75) * fade;
+            pColors[i * 3 + 2] = 1.0 * fade;
+          }
+        } else {
+          if (t < 0.25) {
+            pColors[i * 3] = 1.0;
+            pColors[i * 3 + 1] = 0.95 - t;
+            pColors[i * 3 + 2] = 0.7 - t * 2.5;
+          } else {
+            const fade = 1 - (t - 0.25) / 0.75;
+            pColors[i * 3] = 1.0 * fade;
+            pColors[i * 3 + 1] = Math.max(0, 0.55 - t * 0.65) * fade;
+            pColors[i * 3 + 2] = 0.05 * fade;
+          }
+        }
+      }
+      particleGeo.attributes.position.needsUpdate = true;
+      particleGeo.attributes.color.needsUpdate = true;
+
+      for (let i = 0; i < MAX_SMOKE; i++) {
+        const s = smokeParticles[i];
+        if (!s.active) continue;
+        s.life += dt;
+        if (s.life >= s.maxLife) {
+          s.active = false;
+          sPositions[i * 3 + 1] = -9999;
+          continue;
+        }
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.z += s.vz * dt;
+        s.vx *= 0.985;
+        s.vz *= 0.985;
+        const fade = 1 - s.life / s.maxLife;
+        sPositions[i * 3] = s.x;
+        sPositions[i * 3 + 1] = s.y;
+        sPositions[i * 3 + 2] = s.z;
+        const c = 0.78 * fade;
+        sColors[i * 3] = c;
+        sColors[i * 3 + 1] = c;
+        sColors[i * 3 + 2] = c * 1.05;
+      }
+      smokeGeo.attributes.position.needsUpdate = true;
+      smokeGeo.attributes.color.needsUpdate = true;
+    }
+
+    function clearParticles() {
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        particles[i].active = false;
+        pPositions[i * 3 + 1] = -9999;
+      }
+      for (let i = 0; i < MAX_SMOKE; i++) {
+        smokeParticles[i].active = false;
+        sPositions[i * 3 + 1] = -9999;
+      }
+      particleGeo.attributes.position.needsUpdate = true;
+      smokeGeo.attributes.position.needsUpdate = true;
+    }
+
+    // =========================================================
+    // 8. FORMATTING HELPERS & UI WIRING
+    // =========================================================
+    function formatDistance(meters) {
+      const ly = meters / LIGHT_YEAR_M;
+      if (ly >= 1000) return { val: Math.round(ly).toLocaleString(), unit: 'ly' };
+      if (ly >= 0.05) return { val: ly.toFixed(2), unit: 'ly' };
+      const km = meters / 1000;
+      if (km >= 1000000) return { val: (km / 1e6).toFixed(2), unit: 'M km' };
+      if (km >= 100) return { val: Math.round(km).toLocaleString(), unit: 'km' };
+      if (meters >= 1000) return { val: km.toFixed(2), unit: 'km' };
+      return { val: Math.round(meters).toLocaleString(), unit: 'm' };
+    }
+
+    function formatSpeed(mps) {
+      const lyPerSec = mps / LIGHT_YEAR_M;
+      if (lyPerSec >= 1) return { val: Math.round(lyPerSec).toLocaleString(), unit: 'ly/s' };
+      const cMult = mps / SPEED_OF_LIGHT;
+      if (cMult >= 1) return { val: cMult >= 100 ? Math.round(cMult).toLocaleString() : cMult.toFixed(1), unit: '× c' };
+      if (mps >= 100000) return { val: (cMult * 100).toFixed(1), unit: '% c' };
+      if (mps >= 1000) return { val: (mps / 1000).toFixed(1), unit: 'km/s' };
+      return { val: Math.round(mps).toLocaleString(), unit: 'm/s' };
+    }
+
+    const elModeBadge = document.getElementById('mode-badge');
+    const elBuildLeft = document.getElementById('build-left');
+    const elBuildRight = document.getElementById('build-right');
+    const elBuildBottom = document.getElementById('build-bottom');
+    const elFlightLeft = document.getElementById('flight-left');
+    const elFlightRight = document.getElementById('flight-right');
+    const elFlightBottom = document.getElementById('flight-bottom');
+    const elGalaxyNav = document.getElementById('galaxy-nav');
+    const elReticle = document.getElementById('target-reticle');
+    const elResetBtn = document.getElementById('reset-hangar-btn');
+    const elCamResetBtn = document.getElementById('cam-reset-btn');
+    const elLaunchBtn = document.getElementById('launch-btn');
+    const elInfiniteBtn = document.getElementById('infinite-btn');
+    const elSoundBtn = document.getElementById('sound-btn');
+    const elGuideBtn = document.getElementById('guide-btn');
+    const elBanner = document.getElementById('flight-banner');
+    const elSummaryCard = document.getElementById('summary-card');
+
+    function showBanner(text, color = '#38bdf8', duration = 2600) {
+      elBanner.textContent = text;
+      elBanner.style.color = color;
+      elBanner.style.borderColor = color;
+      elBanner.classList.add('show');
+      clearTimeout(showBanner._t);
+      if (duration > 0) {
+        showBanner._t = setTimeout(() => elBanner.classList.remove('show'), duration);
+      }
+    }
+
+    function updateBuildStats() {
+      document.querySelectorAll('.part-btn').forEach((btn) => {
+        btn.classList.toggle('active', state.config[btn.dataset.slot] === btn.dataset.part);
+      });
+
+      const specs = computeRocketSpecs(1);
+      document.getElementById('stat-weight').textContent = `${specs.weight.toFixed(1)} t`;
+      document.getElementById('stat-thrust').textContent = `${specs.thrust} kN`;
+      document.getElementById('stat-twr').textContent = specs.twr.toFixed(2);
+      document.getElementById('stat-fuel').textContent = specs.isInfiniteFuel
+        ? '∞ Forever'
+        : `${specs.fuelCapacity} u`;
+      document.getElementById('stat-aero').textContent = `${specs.dragCoeff.toFixed(2)} Cd`;
+
+      const twrEl = document.getElementById('twr-status');
+      const canLaunch = Boolean(state.config.thruster && state.config.tank);
+      elLaunchBtn.disabled = !canLaunch;
+
+      if (!state.config.thruster || !state.config.tank) {
+        twrEl.className = 'twr-badge twr-bad';
+        twrEl.textContent = !state.config.thruster && !state.config.tank
+          ? 'Attach Reactor/Tank & Thruster'
+          : !state.config.thruster ? 'Attach a Thruster to Launch' : 'Attach a Tank / Core to Launch';
+      } else if (specs.twr < 1.0) {
+        twrEl.className = 'twr-badge twr-bad';
+        twrEl.textContent = 'TWR < 1.0 • Too Heavy to Lift';
+      } else if (specs.isInfiniteFuel && specs.isWarpThruster) {
+        twrEl.className = 'twr-badge twr-cosmic';
+        twrEl.textContent = `♾️ Intergalactic Warp Ready (TWR ${specs.twr.toFixed(1)})`;
+      } else if (specs.isInfiniteFuel) {
+        twrEl.className = 'twr-badge twr-good';
+        twrEl.textContent = `♾️ Infinite Range Ready (TWR ${specs.twr.toFixed(1)})`;
+      } else {
+        twrEl.className = 'twr-badge twr-warn';
+        twrEl.textContent = `Limited Fuel Mode • TWR ${specs.twr.toFixed(2)}`;
+      }
+    }
+
+    document.querySelectorAll('.part-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (state.mode !== 'build') return;
+        state.config[btn.dataset.slot] = btn.dataset.part;
+        audio.playClick(560);
+        rebuildRocketMesh();
+      });
+    });
+
+    document.querySelectorAll('.detach-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (state.mode !== 'build') return;
+        const slot = btn.dataset.clear;
+        if (state.config[slot] !== null) {
+          state.config[slot] = null;
+          audio.playClick(320);
+          rebuildRocketMesh();
+        }
+      });
+    });
+
+    elInfiniteBtn.addEventListener('click', () => {
+      state.infiniteMode = !state.infiniteMode;
+      elInfiniteBtn.textContent = state.infiniteMode ? '∞ Infinite Fuel: ON' : '∞ Infinite Fuel: OFF';
+      elInfiniteBtn.classList.toggle('active-toggle', state.infiniteMode);
+      audio.playClick(state.infiniteMode ? 680 : 380);
+      if (state.mode === 'build') updateBuildStats();
+    });
+
+    elSoundBtn.addEventListener('click', () => {
+      state.soundEnabled = !state.soundEnabled;
+      elSoundBtn.textContent = state.soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+      if (!state.soundEnabled) audio.updateEngine(0, 0);
+    });
+
+    function toggleAutoGuide() {
+      state.autoGuide = !state.autoGuide;
+      elGuideBtn.textContent = state.autoGuide ? '🎯 Guide (G): ON' : '🎯 Guide (G): OFF';
+      elGuideBtn.classList.toggle('on', state.autoGuide);
+      audio.playClick(state.autoGuide ? 720 : 440);
+    }
+    elGuideBtn.addEventListener('click', toggleAutoGuide);
+
+    function resetFlightCamera() {
+      if (state.mode !== 'flight') return;
+      controls.target.set(state.pos.x, state.pos.y + 2.6, state.pos.z);
+      camera.position.set(state.pos.x, state.pos.y + 4.0, state.pos.z + 16);
+      controls.update();
+      audio.playClick(620);
+    }
+    elCamResetBtn.addEventListener('click', resetFlightCamera);
+
+    // =========================================================
+    // 9. MODE SWITCHING: LAUNCH & RESET TO HANGAR
+    // =========================================================
+    function startLaunchMode() {
+      if (!state.config.thruster || !state.config.tank) return;
+      state.mode = 'flight';
+
+      const specs = computeRocketSpecs(1);
+      state.pos.set(0, state.padTopY, 0);
+      state.cosmicPos.set(0, state.padTopY, 0);
+      state.vel.set(0, 0, 0);
+      state.tiltAngle = 0;
+      state.tiltYaw = 0;
+      state.angularVel = 0;
+      state.throttle = 1.0;
+      state.maxFuel = specs.fuelCapacity;
+      state.fuel = specs.fuelCapacity;
+      state.maxDistanceM = 0;
+      state.maxSpeed = 0;
+      state.flightTime = 0;
+      state.hasLiftedOff = false;
+      state.fuelDepletedAnnounced = false;
+      state.andromedaReached = false;
+      state.foreverConfirmed = false;
+      state.ended = false;
+      state.milestonesHit.clear();
+      state.autoGuide = false;
+      elGuideBtn.textContent = '🎯 Guide (G): OFF';
+      elGuideBtn.classList.remove('on');
+
+      // Keep OrbitControls enabled so user can freely orbit, pan & zoom during flight
+      controls.enabled = true;
+      controls.minDistance = 4;
+      controls.maxDistance = 120;
+      controls.maxPolarAngle = Math.PI * 0.49;
+      controls.target.set(0, state.padTopY + 2.6, 0);
+      camera.position.set(0, state.padTopY + 4.2, 16);
+      controls.update();
+
+      worldGroup.visible = true;
+      worldGroup.position.set(0, 0, 0);
+      earthGroup.visible = false;
+      moonMesh.visible = false;
+      andromedaGroup.visible = false;
+      deepGalaxies.forEach((dg) => (dg.mesh.visible = false));
+
+      elModeBadge.textContent = 'Flight • Deep-Space Transit';
+      elModeBadge.classList.add('flight');
+      elBuildLeft.classList.add('hidden');
+      elBuildRight.classList.add('hidden');
+      elBuildBottom.classList.add('hidden');
+      elFlightLeft.classList.remove('hidden');
+      elFlightRight.classList.remove('hidden');
+      elFlightBottom.classList.remove('hidden');
+      elGalaxyNav.classList.remove('hidden');
+      elCamResetBtn.classList.remove('hidden');
+      elResetBtn.classList.remove('hidden');
+      elSummaryCard.classList.remove('show');
+
+      audio.startEngine();
+      showBanner('🔥 Liftoff! Target: Andromeda Galaxy (2.54M ly)', '#38bdf8', 3000);
+    }
+
+    function resetToHangar() {
+      state.mode = 'build';
+      audio.stopEngine();
+      thrusterLight.intensity = 0;
+      matNozzleGlow.emissiveIntensity = 0;
+      clearParticles();
+
+      camera.fov = 55;
+      camera.updateProjectionMatrix();
+      scene.background.copy(daySkyColor);
+      scene.fog.color.setHex(0x7cb9ed);
+      scene.fog.density = 0.0018;
+
+      worldGroup.visible = true;
+      worldGroup.position.set(0, 0, 0);
+      earthGroup.visible = false;
+      moonMesh.visible = false;
+      andromedaGroup.visible = false;
+      deepGalaxies.forEach((dg) => (dg.mesh.visible = false));
+      streamStarMat.opacity = 0;
+      warpLineMat.opacity = 0;
+      elReticle.classList.remove('show');
+
+      controls.enabled = true;
+      controls.minDistance = 4;
+      controls.maxDistance = 32;
+      controls.maxPolarAngle = Math.PI * 0.49;
+      camera.position.set(8.5, 6.2, 11.5);
+      rebuildRocketMesh();
+      controls.update();
+
+      elModeBadge.textContent = 'Hangar • Intergalactic';
+      elModeBadge.classList.remove('flight');
+      elBuildLeft.classList.remove('hidden');
+      elBuildRight.classList.remove('hidden');
+      elBuildBottom.classList.remove('hidden');
+      elFlightLeft.classList.add('hidden');
+      elFlightRight.classList.add('hidden');
+      elFlightBottom.classList.add('hidden');
+      elGalaxyNav.classList.add('hidden');
+      elCamResetBtn.classList.add('hidden');
+      elResetBtn.classList.add('hidden');
+      elSummaryCard.classList.remove('show');
+      elBanner.classList.remove('show');
+    }
+
+    elLaunchBtn.addEventListener('click', startLaunchMode);
+    elResetBtn.addEventListener('click', resetToHangar);
+    document.getElementById('summary-reset-btn').addEventListener('click', resetToHangar);
+    document.getElementById('continue-forever-btn').addEventListener('click', () => {
+      state.foreverConfirmed = true;
+      elSummaryCard.classList.remove('show');
+      showBanner('♾️ Endless Intergalactic Flight — Keep Exploring Forever!', '#c084fc', 3500);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.throttleUp = true;
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.throttleDown = true;
+      if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        if (state.mode === 'flight') e.preventDefault();
+        keys.warpBoost = true;
+      }
+      if (e.code === 'KeyB') keys.brake = true;
+      if (e.code === 'KeyG' && state.mode === 'flight' && !e.repeat) {
+        toggleAutoGuide();
+      }
+      if (e.code === 'KeyC' && state.mode === 'flight' && !e.repeat) {
+        resetFlightCamera();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.throttleUp = false;
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.throttleDown = false;
+      if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.warpBoost = false;
+      if (e.code === 'KeyB') keys.brake = false;
+    });
+
+    // =========================================================
+    // 10. COSMIC MILESTONES & FLIGHT PHYSICS LOOP
+    // =========================================================
+    const MILESTONES = [
+      { id: 'karman', distM: 100_000, msg: '🛰️ Kármán Line (100 km) — Welcome to Space!', color: '#38bdf8' },
+      { id: 'moon', distM: 384_400_000, msg: '🌕 Lunar Orbit Passed (384,400 km)!', color: '#e2e8f0' },
+      { id: 'lightspeed', distM: 1.5e11, msg: '⚡ Leaving Inner Solar System — Warp Drive Surging!', color: '#facc15' },
+      { id: 'alpha', distM: 4.24 * LIGHT_YEAR_M, msg: '⭐ Passed Alpha Centauri (4.24 ly)!', color: '#60a5fa' },
+      { id: 'mw_edge', distM: 26_000 * LIGHT_YEAR_M, msg: '🌀 Exiting Milky Way Disk (26,000 ly)!', color: '#c084fc' },
+      { id: 'void', distM: 1_000_000 * LIGHT_YEAR_M, msg: '🌌 Deep Intergalactic Void — 1 Million Light-Years!', color: '#f472b6' }
+    ];
+
+    const nozzleWorldPos = new THREE.Vector3();
+    const exhaustDir = new THREE.Vector3();
+    const projVec = new THREE.Vector3();
+    const camForward = new THREE.Vector3();
+    const tmpDelta = new THREE.Vector3();
+    const prevRenderPos = new THREE.Vector3();
+
+    function updateFlight(dt) {
+      state.flightTime += dt;
+
+      if (!state.ended) {
+        if (keys.throttleUp) state.throttle = Math.min(1, state.throttle + dt * 0.75);
+        if (keys.throttleDown) state.throttle = Math.max(0, state.throttle - dt * 0.75);
+      }
+
+      const fuelRatio = (state.maxFuel === Infinity || state.maxFuel <= 0) ? 1 : (state.fuel / state.maxFuel);
+      const specs = computeRocketSpecs(fuelRatio);
+      const massKg = specs.weight * 1000;
+
+      const distFromEarthM = Math.max(0, state.cosmicPos.length() - state.padTopY);
+      const inDeepSpace = distFromEarthM > 14000;
+
+      // Exact direction to Andromeda
+      const vecToAndromeda = ANDROMEDA_POS_M.clone().sub(state.cosmicPos);
+      const distToAndromedaM = vecToAndromeda.length();
+      const targetDirNorm = distToAndromedaM > 0 ? vecToAndromeda.clone().divideScalar(distToAndromedaM) : TARGET_DIR.clone();
+
+      // Exact Euler angles (XYZ order: Rx(tiltYaw) * Rz(tiltAngle) * (0,1,0))
+      const targetAngleZ = Math.atan2(-targetDirNorm.x, Math.hypot(targetDirNorm.y, targetDirNorm.z));
+      const targetYawX = Math.atan2(targetDirNorm.z, targetDirNorm.y);
+
+      if (!state.ended) {
+        if (keys.left || keys.right) {
+          const steerTorque = inDeepSpace ? 2.6 : 2.15;
+          if (keys.left) state.angularVel += steerTorque * dt;
+          if (keys.right) state.angularVel -= steerTorque * dt;
+          state.tiltYaw *= Math.pow(0.25, dt);
+        } else if (state.autoGuide && distFromEarthM > 120) {
+          let diffZ = targetAngleZ - state.tiltAngle;
+          while (diffZ > Math.PI) diffZ -= Math.PI * 2;
+          while (diffZ < -Math.PI) diffZ += Math.PI * 2;
+          let diffX = targetYawX - state.tiltYaw;
+          while (diffX > Math.PI) diffX -= Math.PI * 2;
+          while (diffX < -Math.PI) diffX += Math.PI * 2;
+
+          state.tiltAngle += diffZ * Math.min(1, dt * 3.5);
+          state.tiltYaw += diffX * Math.min(1, dt * 3.5);
+          state.angularVel *= 0.8;
+        }
+      }
+
+      state.angularVel *= Math.pow(0.16, dt);
+      state.tiltAngle += state.angularVel * dt;
+
+      if (distFromEarthM < 0.3 && state.vel.y <= 0.1) {
+        state.tiltAngle *= 0.85;
+        state.tiltYaw = 0;
+        state.angularVel = 0;
+      }
+
+      rocketGroup.rotation.set(state.tiltYaw, 0, state.tiltAngle);
+      const rocketUp = new THREE.Vector3(0, 1, 0).applyEuler(rocketGroup.rotation).normalize();
+
+      const hasFuel = specs.isInfiniteFuel || state.fuel > 0;
+      const isFiring = !state.ended && hasFuel && state.throttle > 0.01;
+
+      let activeThrustKN = 0;
+      if (isFiring) {
+        activeThrustKN = specs.thrust * state.throttle;
+        if (!specs.isInfiniteFuel) {
+          state.fuel = Math.max(0, state.fuel - specs.burnRate * state.throttle * dt);
+          if (state.fuel <= 0 && !state.fuelDepletedAnnounced) {
+            state.fuelDepletedAnnounced = true;
+            showBanner('⚡ Fuel Depleted — Coasting on Momentum', '#facc15', 2800);
+          }
+        }
+      }
+
+      // Physics: Atmospheric Ascent vs Deep-Space Warp
+      if (!inDeepSpace) {
+        const thrustForce = rocketUp.clone().multiplyScalar(activeThrustKN * 1000);
+        const gravityForce = new THREE.Vector3(0, -massKg * 9.81, 0);
+        const airDensity = 1.225 * Math.exp(-distFromEarthM / 2200);
+        const speed = state.vel.length();
+        const dragMag = 0.5 * airDensity * specs.dragCoeff * 1.45 * speed * speed;
+        const dragForce = speed > 0.01 ? state.vel.clone().normalize().multiplyScalar(-dragMag) : new THREE.Vector3();
+
+        const netForce = thrustForce.add(gravityForce).add(dragForce);
+        state.vel.addScaledVector(netForce.divideScalar(massKg), dt);
+      } else {
+        let curSpeed = state.vel.length();
+
+        if (isFiring) {
+          curSpeed += (activeThrustKN * 1000 / massKg) * dt;
+          const boost = keys.warpBoost ? 2.1 : 1.0;
+          const warpRate = specs.warpMult * state.throttle * boost;
+          curSpeed = Math.max(curSpeed, 400);
+          curSpeed *= Math.exp(warpRate * dt);
+        }
+
+        if (keys.brake) {
+          curSpeed *= Math.exp(-2.8 * dt);
+        }
+
+        const maxCosmicSpeed = 420000 * LIGHT_YEAR_M;
+        curSpeed = Math.min(curSpeed, maxCosmicSpeed);
+
+        if (isFiring || curSpeed > 5000) {
+          const curDir = state.vel.lengthSq() > 0.01 ? state.vel.clone().normalize() : rocketUp.clone();
+          const alignRate = isFiring ? Math.min(1, dt * 4.5) : 0;
+          curDir.lerp(rocketUp, alignRate).normalize();
+          state.vel.copy(curDir).multiplyScalar(curSpeed);
+        }
+      }
+
+      // Integrate true cosmic coordinates and keep render coords strictly bounded!
+      prevRenderPos.copy(state.pos);
+      state.cosmicPos.addScaledVector(state.vel, dt);
+      const newDistM = Math.max(0, state.cosmicPos.length() - state.padTopY);
+
+      if (state.cosmicPos.length() < FLOATING_ORIGIN_THRESHOLD) {
+        // Near launchpad: rocket moves directly in local scene space
+        state.pos.copy(state.cosmicPos);
+        worldGroup.position.set(0, 0, 0);
+        tmpDelta.copy(state.pos).sub(prevRenderPos);
+        camera.position.add(tmpDelta);
+        controls.target.add(tmpDelta);
+        if (prevRenderPos.lengthSq() < 1 && state.pos.length() > 10) {
+          shiftAllParticles(tmpDelta);
+        }
+      } else {
+        // Floating-origin space regime: anchor rocket at (0,0,0) so camera & precision never break!
+        if (prevRenderPos.lengthSq() > 0.0001) {
+          // One-time seamless recenter on crossing the threshold
+          camera.position.sub(prevRenderPos);
+          controls.target.sub(prevRenderPos);
+          shiftAllParticles(prevRenderPos.clone().negate());
+        }
+        state.pos.set(0, 0, 0);
+        if (newDistM < 25000) {
+          worldGroup.position.copy(state.cosmicPos).negate();
+        }
+      }
+
+      const curDistM = newDistM;
+      const curSpeed = state.vel.length();
+
+      // Ground collision near Earth
+      if (state.cosmicPos.y <= state.padTopY && curDistM < 50) {
+        if (state.hasLiftedOff && !state.ended) {
+          const impactSpeed = Math.abs(state.vel.y);
+          state.cosmicPos.y = state.padTopY;
+          state.pos.y = state.padTopY;
+          state.vel.set(0, 0, 0);
+          state.ended = true;
+          audio.stopEngine();
+
+          const summaryTitle = document.getElementById('summary-title');
+          const summaryDesc = document.getElementById('summary-desc');
+          const dFmt = formatDistance(state.maxDistanceM);
+          const sFmt = formatSpeed(state.maxSpeed);
+          document.getElementById('sum-alt').textContent = `${dFmt.val} ${dFmt.unit}`;
+          document.getElementById('sum-speed').textContent = `${sFmt.val} ${sFmt.unit}`;
+          document.getElementById('continue-forever-btn').classList.add('hidden');
+
+          if (impactSpeed > 18) {
+            summaryTitle.textContent = '💥 Hard Impact!';
+            summaryTitle.style.color = '#f87171';
+            summaryDesc.textContent = `Touched down at ${impactSpeed.toFixed(1)} m/s. Try again with Warp Drive or Infinite Fuel!`;
+            spawnExplosion(state.pos);
+            audio.playBoom();
+          } else {
+            summaryTitle.textContent = '🏆 Safe Touchdown!';
+            summaryTitle.style.color = '#4ade80';
+            summaryDesc.textContent = `Returned safely to Earth pad after reaching ${dFmt.val} ${dFmt.unit}.`;
+          }
+          elSummaryCard.classList.add('show');
+        } else {
+          state.cosmicPos.y = state.padTopY;
+          state.pos.y = state.padTopY;
+          if (state.vel.y < 0) state.vel.y = 0;
+          state.vel.x *= 0.8;
+        }
+      } else if (curDistM > 2.5) {
+        state.hasLiftedOff = true;
+      }
+
+      if (curDistM > state.maxDistanceM) state.maxDistanceM = curDistM;
+      if (curSpeed > state.maxSpeed) state.maxSpeed = curSpeed;
+
+      // Milestones
+      for (const m of MILESTONES) {
+        if (curDistM >= m.distM && !state.milestonesHit.has(m.id)) {
+          state.milestonesHit.add(m.id);
+          showBanner(m.msg, m.color, 3000);
+          audio.playChime(523.25);
+        }
+      }
+
+      if (curSpeed >= SPEED_OF_LIGHT && !state.milestonesHit.has('c_break')) {
+        state.milestonesHit.add('c_break');
+        showBanner('🌟 LIGHT SPEED BARRIER BROKEN (1.0× c)!', '#38bdf8', 3000);
+        audio.playChime(659.25);
+      }
+
+      // Andromeda arrival
+      const newDistToAndromeda = ANDROMEDA_POS_M.distanceTo(state.cosmicPos);
+      const arrivalRadiusM = 45000 * LIGHT_YEAR_M;
+      if (!state.andromedaReached && newDistToAndromeda <= arrivalRadiusM) {
+        state.andromedaReached = true;
+        audio.playChime(783.99);
+        showBanner('🌌 ARRIVED AT ANDROMEDA GALAXY (M31)!', '#e879f9', 4500);
+
+        const dFmt = formatDistance(state.maxDistanceM);
+        const sFmt = formatSpeed(state.maxSpeed);
+        document.getElementById('summary-title').textContent = '🌌 Andromeda Galaxy Reached!';
+        document.getElementById('summary-title').style.color = '#e9d5ff';
+        document.getElementById('summary-desc').textContent =
+          `You crossed 2,537,000 light-years of intergalactic void in ${state.flightTime.toFixed(1)}s! Your infinite rocket can keep flying through Andromeda and beyond forever.`;
+        document.getElementById('sum-alt').textContent = `${dFmt.val} ${dFmt.unit}`;
+        document.getElementById('sum-speed').textContent = `${sFmt.val} ${sFmt.unit}`;
+        document.getElementById('continue-forever-btn').classList.remove('hidden');
+        elSummaryCard.classList.add('show');
+      }
+
+      // Subtle pad vibration without disturbing OrbitControls
+      const padShake = (isFiring && curDistM < 45) ? (Math.random() - 0.5) * 0.045 * state.throttle : 0;
+      rocketGroup.position.set(state.pos.x + padShake, state.pos.y + padShake, state.pos.z);
+      rocketGroup.updateMatrixWorld(true);
+
+      // Visuals: Exhaust, Sky, Earth, Stars, Warp Lines & Galaxies
+      const warpRatio = curSpeed >= 5000 ? Math.min(1, Math.log10(curSpeed / 5000) / 14) : 0;
+      const thrustVis = isFiring ? state.throttle : 0;
+      audio.updateEngine(thrustVis, warpRatio);
+
+      const isQuantumFlame = specs.isWarpThruster || specs.isInfiniteFuel;
+      matNozzleGlow.emissive.setHex(isQuantumFlame ? 0x38bdf8 : 0xff5500);
+      matNozzleGlow.emissiveIntensity = thrustVis * 2.8;
+
+      if (isFiring) {
+        nozzleWorldPos.set(0, state.nozzleLocalY, 0).applyMatrix4(rocketGroup.matrixWorld);
+        exhaustDir.copy(rocketUp).negate();
+
+        thrusterLight.color.setHex(isQuantumFlame ? 0x38bdf8 : 0xff8c2a);
+        thrusterLight.position.copy(nozzleWorldPos).addScaledVector(exhaustDir, 0.8);
+        thrusterLight.intensity = (6 + Math.random() * 4) * thrustVis;
+
+        const count = Math.ceil((specs.isWarpThruster || state.config.thruster === 'heavy' ? 11 : 7) * thrustVis);
+        const exhaustSpeed = (specs.isWarpThruster ? 26 : 19) * (keys.warpBoost ? 1.35 : 1.0);
+        for (let i = 0; i < count; i++) {
+          spawnFlameParticle(nozzleWorldPos, exhaustDir, exhaustSpeed + Math.random() * 6, 0.24, isQuantumFlame ? 'plasma' : 'fire');
+        }
+
+        if (curDistM < 38) {
+          for (let i = 0; i < 3; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const radial = 4 + Math.random() * 10;
+            spawnSmokeParticle(
+              state.pos.x + (Math.random() - 0.5) * 1.4,
+              Math.max(0.6, state.pos.y - 0.2),
+              state.pos.z + (Math.random() - 0.5) * 1.4,
+              Math.cos(ang) * radial, 1.2 + Math.random() * 2.5, Math.sin(ang) * radial, 1.2 + Math.random() * 0.8
+            );
+          }
+        }
+      } else {
+        thrusterLight.intensity = 0;
+      }
+
+      // Sky & Fog transition
+      const tLow = Math.min(1, curDistM / 1400);
+      const tHigh = Math.min(1, Math.max(0, (curDistM - 1400) / 4000));
+      scene.background.copy(daySkyColor).lerp(highSkyColor, tLow).lerp(spaceColor, tHigh);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = 0.0018 * (1 - Math.min(1, curDistM / 4500));
+      worldGroup.visible = curDistM < 18000;
+
+      // Receding 3D Earth Sphere
+      if (curDistM > 2500 && curDistM < 0.05 * LIGHT_YEAR_M) {
+        earthGroup.visible = true;
+        const earthDir = state.cosmicPos.clone().negate().normalize();
+        const logDist = Math.log10(curDistM / 2500);
+        const visDist = 420 + logDist * 320;
+        const visScale = Math.max(1.5, 360 * Math.pow(0.42, logDist));
+        earthGroup.position.copy(state.pos).addScaledVector(earthDir, visDist);
+        earthGroup.scale.setScalar(visScale);
+        earthMesh.rotation.y += dt * 0.04;
+      } else {
+        earthGroup.visible = false;
+      }
+
+      // Passing 3D Moon
+      const moonDistM = 384_400_000;
+      if (curDistM > moonDistM * 0.15 && curDistM < moonDistM * 12) {
+        moonMesh.visible = true;
+        const rel = (moonDistM - curDistM) / moonDistM;
+        moonMesh.position.set(state.pos.x - 160, state.pos.y + rel * 850, state.pos.z - 220);
+        moonMesh.scale.setScalar(42);
+      } else {
+        moonMesh.visible = false;
+      }
+
+      // Infinite Wrapping Starfield
+      const spaceVis = Math.min(1, Math.max(0, (curDistM - 1200) / 4000));
+      streamStarMat.opacity = spaceVis;
+      if (spaceVis > 0.01) {
+        const visualFlowSpeed = curSpeed > 10 ? Math.min(260, Math.pow(Math.log10(curSpeed + 1), 2.15) * 1.45) : 0;
+        const flowDir = curSpeed > 1 ? state.vel.clone().normalize() : rocketUp;
+        const half = STREAM_BOX / 2;
+        for (let i = 0; i < STREAM_STAR_COUNT; i++) {
+          let sx = streamStarPos[i * 3] - flowDir.x * visualFlowSpeed * dt;
+          let sy = streamStarPos[i * 3 + 1] - flowDir.y * visualFlowSpeed * dt;
+          let sz = streamStarPos[i * 3 + 2] - flowDir.z * visualFlowSpeed * dt;
+          if (sx < -half) sx += STREAM_BOX; else if (sx > half) sx -= STREAM_BOX;
+          if (sy < -half) sy += STREAM_BOX; else if (sy > half) sy -= STREAM_BOX;
+          if (sz < -half) sz += STREAM_BOX; else if (sz > half) sz -= STREAM_BOX;
+          streamStarPos[i * 3] = sx;
+          streamStarPos[i * 3 + 1] = sy;
+          streamStarPos[i * 3 + 2] = sz;
+        }
+        streamStarGeo.attributes.position.needsUpdate = true;
+        streamStars.position.copy(state.pos);
+      }
+
+      // 3D-oriented Warp Speed Lines
+      const warpStreakIntensity = curSpeed > 50_000 ? Math.min(1, (Math.log10(curSpeed) - 4.7) / 6) : 0;
+      warpLineMat.opacity = warpStreakIntensity * 0.72;
+      warpLineMat.color.setHex(keys.warpBoost ? 0xe879f9 : 0x7dd3fc);
+      if (warpStreakIntensity > 0.02) {
+        const flowDir = curSpeed > 1 ? state.vel.clone().normalize() : rocketUp;
+        const upRef = Math.abs(flowDir.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        const basisRight = new THREE.Vector3().crossVectors(upRef, flowDir).normalize();
+        const basisUp = new THREE.Vector3().crossVectors(flowDir, basisRight).normalize();
+
+        const streakLen = 8 + warpStreakIntensity * 48;
+        const streakSpeed = 120 + warpStreakIntensity * 340;
+        for (let i = 0; i < WARP_LINE_COUNT; i++) {
+          const s = warpSeeds[i];
+          s.along -= streakSpeed * dt;
+          if (s.along < -130) s.along += 260;
+
+          const bx = state.pos.x + flowDir.x * s.along + basisRight.x * s.cos + basisUp.x * s.sin;
+          const by = state.pos.y + flowDir.y * s.along + basisRight.y * s.cos + basisUp.y * s.sin;
+          const bz = state.pos.z + flowDir.z * s.along + basisRight.z * s.cos + basisUp.z * s.sin;
+          warpLinePos[i * 6] = bx;
+          warpLinePos[i * 6 + 1] = by;
+          warpLinePos[i * 6 + 2] = bz;
+          warpLinePos[i * 6 + 3] = bx - flowDir.x * streakLen;
+          warpLinePos[i * 6 + 4] = by - flowDir.y * streakLen;
+          warpLinePos[i * 6 + 5] = bz - flowDir.z * streakLen;
+        }
+        warpLineGeo.attributes.position.needsUpdate = true;
+      }
+
+      // 3D Andromeda Galaxy Positioning & Scaling
+      if (curDistM > 3000) {
+        andromedaGroup.visible = true;
+        const dirToAndromeda = vecToAndromeda.lengthSq() > 0
+          ? vecToAndromeda.clone().normalize()
+          : TARGET_DIR.clone();
+        const distLY = newDistToAndromeda / LIGHT_YEAR_M;
+
+        const renderDist = Math.min(2200, Math.max(180, distLY * 0.04));
+        andromedaGroup.position.copy(state.pos).addScaledVector(dirToAndromeda, renderDist);
+
+        const proximityRatio = ANDROMEDA_LY / Math.max(distLY, 18000);
+        const galScale = Math.min(11, 0.42 * Math.pow(proximityRatio, 0.65));
+        andromedaGroup.scale.setScalar(galScale);
+        andromedaGroup.rotation.y += dt * 0.06;
+      } else {
+        andromedaGroup.visible = false;
+      }
+
+      // Deep-space galaxies ahead past Andromeda
+      deepGalaxies.forEach((dg) => {
+        if (curDistM > ANDROMEDA_M * 0.7) {
+          dg.mesh.visible = true;
+          const targetP = dg.dir.clone().multiplyScalar(dg.distLY * LIGHT_YEAR_M);
+          const vec = targetP.sub(state.cosmicPos);
+          const dLY = vec.length() / LIGHT_YEAR_M;
+          const dir = vec.lengthSq() > 0 ? vec.normalize() : dg.dir;
+          dg.mesh.position.copy(state.pos).addScaledVector(dir, 2400);
+          dg.mesh.scale.setScalar(Math.min(8, Math.max(0.25, 0.55 * (3000000 / Math.max(dLY, 25000)))));
+          dg.mesh.rotation.y += dt * 0.05;
+        } else {
+          dg.mesh.visible = false;
+        }
+      });
+
+      // Dynamic Warp FOV + User-Movable OrbitControls
+      const targetFov = 55 + warpStreakIntensity * 22 + (keys.warpBoost && inDeepSpace ? 6 : 0);
+      if (Math.abs(camera.fov - targetFov) > 0.05) {
+        camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 4);
+        camera.updateProjectionMatrix();
+      }
+
+      // Allow full 360-degree orbiting once clear of the ground
+      controls.maxPolarAngle = curDistM < 80 ? Math.PI * 0.49 : Math.PI;
+      controls.update();
+
+      // Update 2D Projected Target Reticle for Andromeda
+      if (curDistM > 3000) {
+        camera.getWorldDirection(camForward);
+        const toAndro = andromedaGroup.position.clone().sub(camera.position);
+        if (camForward.dot(toAndro) > 0) {
+          projVec.copy(andromedaGroup.position).project(camera);
+          const sx = (projVec.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-projVec.y * 0.5 + 0.5) * window.innerHeight;
+          elReticle.style.left = `${Math.max(40, Math.min(window.innerWidth - 40, sx))}px`;
+          elReticle.style.top = `${Math.max(90, Math.min(window.innerHeight - 60, sy))}px`;
+          elReticle.classList.add('show');
+          const dAndroFmt = formatDistance(newDistToAndromeda);
+          document.getElementById('reticle-label').textContent = state.andromedaReached
+            ? `ANDROMEDA CORE • ${dAndroFmt.val} ${dAndroFmt.unit}`
+            : `ANDROMEDA M31 • ${dAndroFmt.val} ${dAndroFmt.unit}`;
+        } else {
+          elReticle.classList.remove('show');
+        }
+      } else {
+        elReticle.classList.remove('show');
+      }
+
+      // Update Flight HUD Telemetry
+      const distFmt = formatDistance(curDistM);
+      const maxDistFmt = formatDistance(state.maxDistanceM);
+      document.getElementById('hud-dist').textContent = distFmt.val;
+      document.getElementById('hud-dist-unit').textContent = distFmt.unit;
+      document.getElementById('hud-max-dist').textContent = `${maxDistFmt.val} ${maxDistFmt.unit}`;
+      document.getElementById('hud-tilt').textContent = Math.round((-state.tiltAngle * 180) / Math.PI);
+
+      let zone = 'Troposphere';
+      if (curDistM < 5) zone = 'Launchpad';
+      else if (curDistM > ANDROMEDA_M * 1.05) zone = 'Endless Cosmos';
+      else if (state.andromedaReached) zone = 'Andromeda Galaxy';
+      else if (curDistM > 30000 * LIGHT_YEAR_M) zone = 'Intergalactic Void';
+      else if (curDistM > 4 * LIGHT_YEAR_M) zone = 'Milky Way';
+      else if (curDistM > 1e11) zone = 'Interstellar';
+      else if (curDistM > 100000) zone = 'Deep Space';
+      else if (curDistM > 14000) zone = 'Low Orbit';
+      else if (curDistM > 1200) zone = 'Stratosphere';
+      document.getElementById('zone-label').textContent = zone;
+
+      const fuelBar = document.getElementById('hud-fuel-bar');
+      if (specs.isInfiniteFuel) {
+        document.getElementById('hud-fuel-pct').textContent = '∞';
+        fuelBar.style.width = '100%';
+        fuelBar.style.background = 'linear-gradient(90deg, #38bdf8, #a855f7)';
+        document.getElementById('hud-fuel-units').textContent = 'Infinite Zero-Point Drive • ∞';
+      } else {
+        const fuelPct = state.maxFuel > 0 ? Math.round((state.fuel / state.maxFuel) * 100) : 0;
+        document.getElementById('hud-fuel-pct').textContent = `${fuelPct}%`;
+        fuelBar.style.width = `${fuelPct}%`;
+        fuelBar.style.background = fuelPct < 20
+          ? 'linear-gradient(90deg, #ef4444, #f97316)'
+          : 'linear-gradient(90deg, #f97316, #facc15)';
+        document.getElementById('hud-fuel-units').textContent = `${Math.ceil(state.fuel)} / ${state.maxFuel} units`;
+      }
+
+      const spdFmt = formatSpeed(curSpeed);
+      const maxSpdFmt = formatSpeed(state.maxSpeed);
+      document.getElementById('hud-speed').textContent = spdFmt.val;
+      document.getElementById('hud-speed-unit').textContent = spdFmt.unit;
+      document.getElementById('hud-max-speed').textContent = `${maxSpdFmt.val} ${maxSpdFmt.unit}`;
+
+      if (curSpeed >= SPEED_OF_LIGHT) {
+        const warpFactor = Math.max(1, Math.pow(curSpeed / SPEED_OF_LIGHT, 1 / 3));
+        document.getElementById('hud-mach').textContent = `Warp ${warpFactor.toFixed(1)}`;
+      } else {
+        document.getElementById('hud-mach').textContent = `Mach ${(curSpeed / 343).toFixed(1)}`;
+      }
+
+      const warpPill = document.getElementById('warp-pill');
+      if (inDeepSpace && isFiring) {
+        warpPill.classList.add('active');
+        warpPill.textContent = keys.warpBoost ? '⚡ Hyper-Warp Boost!' : '🌀 Warp Drive Active';
+      } else if (keys.brake) {
+        warpPill.classList.remove('active');
+        warpPill.textContent = '🛑 Space Braking';
+      } else if (inDeepSpace) {
+        warpPill.classList.remove('active');
+        warpPill.textContent = 'Coasting in Vacuum';
+      } else {
+        warpPill.classList.remove('active');
+        warpPill.textContent = 'Atmospheric Ascent';
+      }
+
+      const thrPct = Math.round(state.throttle * 100);
+      document.getElementById('hud-throttle-pct').textContent = `${thrPct}%`;
+      document.getElementById('hud-throttle-bar').style.width = `${thrPct}%`;
+      document.getElementById('hud-drive-mode').textContent = inDeepSpace
+        ? (keys.warpBoost ? 'Hyper-Warp' : 'Intergalactic')
+        : `${Math.round(activeThrustKN)} kN Thrust`;
+
+      const alignDeg = (Math.acos(Math.max(-1, Math.min(1, rocketUp.dot(targetDirNorm)))) * 180) / Math.PI;
+      const dLeftFmt = formatDistance(newDistToAndromeda);
+
+      if (!state.andromedaReached) {
+        const pct = Math.min(100, Math.max(0, (1 - newDistToAndromeda / ANDROMEDA_M) * 100));
+        document.getElementById('nav-target-title').textContent = '🎯 Target: Andromeda Galaxy (M31)';
+        document.getElementById('nav-progress-pct').textContent = `${pct.toFixed(2)}%`;
+        document.getElementById('nav-progress-fill').style.width = `${pct}%`;
+        document.getElementById('nav-dist-left').textContent = `${dLeftFmt.val} ${dLeftFmt.unit} left`;
+      } else {
+        const extraDistFmt = formatDistance(Math.max(0, curDistM - ANDROMEDA_M));
+        document.getElementById('nav-target-title').textContent = '♾️ Beyond Andromeda — Endless Space';
+        document.getElementById('nav-progress-pct').textContent = '100% ✓';
+        document.getElementById('nav-progress-fill').style.width = '100%';
+        document.getElementById('nav-dist-left').textContent = `+${extraDistFmt.val} ${extraDistFmt.unit} beyond`;
+      }
+
+      document.getElementById('nav-heading-err').textContent = `Align: ${alignDeg.toFixed(1)}°`;
+      if (curSpeed > 1000 && !state.andromedaReached) {
+        const etaSec = newDistToAndromeda / curSpeed;
+        document.getElementById('nav-eta').textContent = etaSec > 3600
+          ? 'ETA: Accelerating...'
+          : `ETA: ${Math.ceil(etaSec)}s`;
+      } else {
+        document.getElementById('nav-eta').textContent = state.andromedaReached ? 'Status: Exploring' : 'ETA: --';
+      }
+    }
+
+    // =========================================================
+    // 11. MAIN ANIMATION LOOP & RESIZE
+    // =========================================================
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    let lastTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      for (const item of animatedParts) {
+        item.mesh.rotation.z += item.speed * dt;
+      }
+
+      if (state.mode === 'build') {
+        controls.update();
+        if (buildAnimScale < 1) {
+          buildAnimScale = Math.min(1, buildAnimScale + dt * 3.5);
+          rocketGroup.scale.setScalar(buildAnimScale);
+        } else {
+          rocketGroup.scale.setScalar(1);
+        }
+      } else {
+        rocketGroup.scale.setScalar(1);
+        updateFlight(dt);
+      }
+
+      updateParticles(dt);
+      renderer.render(scene, camera);
+    }
+
+    rebuildRocketMesh();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
+```
